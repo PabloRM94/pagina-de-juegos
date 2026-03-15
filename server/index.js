@@ -19,11 +19,23 @@ const io = new Server(httpServer, {
 const rooms = new Map();
 
 // Roles disponibles
-const ROLES = ['piedra', 'papel', 'tijera'];
+const ROLES = ['piedra', 'papel', 'tijera', 'lagarto', 'spock'];
 
-// Función para asignar rol aleatorio
-function assignRandomRole() {
-  return ROLES[Math.floor(Math.random() * ROLES.length)];
+// Función para resolver encuentro (piedra-papel-tijera-lagarto-spock)
+// Returns: 'tie', 'player1', o 'player2'
+function resolveEncounter(role1, role2) {
+  if (role1 === role2) return 'tie';
+  
+  // Victoria de role1 sobre role2
+  const wins = {
+    piedra: ['tijera', 'lagarto'],
+    papel: ['piedra', 'spock'],
+    tijera: ['papel', 'lagarto'],
+    lagarto: ['spock', 'papel'],
+    spock: ['tijera', 'piedra']
+  };
+  
+  return wins[role1]?.includes(role2) ? 'player1' : 'player2';
 }
 
 // Función para asignar rol balanceado (evitando duplicados si es posible)
@@ -50,17 +62,9 @@ function assignBalancedRole(roles, existingRoles) {
   return assignRandomRole();
 }
 
-// Función para determinar ganador del encuentro
-function resolveEncounter(role1, role2) {
-  if (role1 === role2) return 'tie';
-  
-  const wins = {
-    piedra: 'tijera',
-    papel: 'piedra',
-    tijera: 'papel'
-  };
-  
-  return wins[role1] === role2 ? 'player1' : 'player2';
+// Función para asignar rol aleatorio
+function assignRandomRole() {
+  return ROLES[Math.floor(Math.random() * ROLES.length)];
 }
 
 io.on('connection', (socket) => {
@@ -98,6 +102,13 @@ io.on('connection', (socket) => {
     
     if (!room) {
       callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    // Verificar si hay jugadores eliminados - no se permiten nuevas incorporaciones
+    const hasEliminatedPlayers = room.players.some(p => p.eliminated);
+    if (hasEliminatedPlayers) {
+      callback({ success: false, error: 'No puedes unirte a una partida en progreso con eliminados' });
       return;
     }
     

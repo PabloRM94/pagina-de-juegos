@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
-// Conectar al servidor
-const socket = io('http://localhost:3001');
+// Socket singleton - se crea una sola vez
+// URL del servidor: usa variable de entorno en producción, localhost en desarrollo
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+
+const getSocket = (() => {
+  let socket = null;
+  return () => {
+    if (!socket) {
+      socket = io(SERVER_URL);
+    }
+    return socket;
+  };
+})();
 
 // Vistas disponibles
 const VIEWS = {
@@ -77,46 +88,29 @@ function StatusBadge({ status }) {
   );
 }
 
-// Componente Selector de Avatar
+// Componente Selector de Avatar (minimalista)
 function AvatarSelector({ selectedStyle, onSelect }) {
-  const [customSeed, setCustomSeed] = useState('');
-  
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-400 mb-3">Elegí un estilo de avatar:</p>
-      <div className="grid grid-cols-3 gap-3">
+    <div className="space-y-3">
+      <p className="text-sm text-gray-400">Estilo de avatar</p>
+      <div className="flex gap-2 overflow-x-auto pb-2">
         {AVATAR_STYLES.map(style => (
           <button
             key={style.id}
             onClick={() => onSelect(style.id)}
-            className={`p-2 rounded-xl transition-all duration-200 ${
+            className={`flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden transition-all duration-200 ${
               selectedStyle === style.id 
-                ? 'bg-indigo-500/30 ring-2 ring-indigo-500' 
-                : 'bg-white/5 hover:bg-white/10'
+                ? 'ring-2 ring-indigo-500 scale-110' 
+                : 'opacity-60 hover:opacity-100'
             }`}
           >
             <img 
               src={getAvatarUrl(style.id, 'preview')}
               alt={style.name}
-              className="w-full aspect-square object-cover rounded-lg mb-1"
+              className="w-full h-full object-cover"
             />
-            <span className="text-xs text-gray-300">{style.name}</span>
           </button>
         ))}
-      </div>
-      
-      <div className="pt-4 border-t border-white/10">
-        <p className="text-sm text-gray-400 mb-2">O ingresa un código único:</p>
-        <input
-          type="text"
-          placeholder="Tu código (secreto)"
-          value={customSeed}
-          onChange={(e) => setCustomSeed(e.target.value)}
-          className="input-field text-sm"
-        />
-        <p className="text-xs text-gray-500 mt-1">
-          Este código genera un avatar único y siempre el mismo
-        </p>
       </div>
     </div>
   );
@@ -134,12 +128,50 @@ function App() {
   const [pendingEncounters, setPendingEncounters] = useState({});
   const [lastEncounter, setLastEncounter] = useState(null);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  // Socket singleton
+  const socket = getSocket();
+
+  // Control de conexión del socket
+  useEffect(() => {
+    socket.on('connect', () => {
+      console.log('Conectado al servidor:', socket.id);
+      setSocketConnected(true);
+      setError('');
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Desconectado del servidor');
+      setSocketConnected(false);
+      setError('Conexión perdida. Intentando reconectar...');
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Error de conexión:', err);
+      setSocketConnected(false);
+      setError('No se puede conectar al servidor. Verificá que esté corriendo.');
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+      socket.off('connect_error');
+    };
+  }, []);
 
   useEffect(() => {
     // Escuchar actualizaciones de sala
     socket.on('room-updated', (updatedRoom) => {
       setRoom(updatedRoom);
       console.log('Room updated:', updatedRoom.state);
+      
+      // Actualizar el jugador actual con los datos más recientes
+      const me = updatedRoom.players.find(p => p.id === player?.id);
+      if (me) {
+        setPlayer(me);
+      }
       
       // Actualizar vista según estado
       if (updatedRoom.state === 'lobby' || updatedRoom.state === 'ready') {
@@ -195,9 +227,15 @@ function App() {
 
     // Escuchar resultado de encuentro
     socket.on('encounter-resolved', (result) => {
+      console.log('Encuentro resuelto:', result);
       setLastEncounter(result);
       setView(VIEWS.ENCOUNTER_RESULT);
       setPendingEncounters({});
+      
+      // Si el jugador actual fue eliminado, actualizar su estado
+      if (result.loser?.id === player?.id) {
+        setPlayer(prev => ({ ...prev, eliminated: true, isAlive: false }));
+      }
     });
 
     return () => {
@@ -232,23 +270,39 @@ function App() {
       return;
     }
     
+    if (!socketConnected) {
+      setError('No hay conexión con el servidor. Esperando reconexión...');
+      return;
+    }
+    
+    setIsLoading(true);
+    setError('');
+    
+    console.log('Creando sala...');
     socket.emit('create-room', {}, (response) => {
+      console.log('Respuesta create-room:', response);
       if (response.success) {
+        console.log('Sala creada:', response.roomId);
         socket.emit('join-room', { 
           roomId: response.roomId, 
           playerName: playerName.trim(),
           avatarStyle: avatarStyle,
           avatarSeed: getAvatarSeed()
         }, (joinResponse) => {
+          console.log('Respuesta join-room:', joinResponse);
+          setIsLoading(false);
           if (joinResponse.success) {
             setRoom(joinResponse.room);
             setPlayer(joinResponse.player);
             setView(VIEWS.LOBBY);
             setError('');
+          } else {
+            setError(joinResponse.error || 'Error al unirse a la sala');
           }
         });
       } else {
-        setError(response.error);
+        setIsLoading(false);
+        setError(response.error || 'Error al crear la sala');
       }
     });
   };
@@ -347,6 +401,14 @@ function App() {
               Juego del Escondite
             </h1>
             <p className="text-gray-400">Encuentra a tus amigos y ganá</p>
+            
+            {/* Indicador de conexión */}
+            <div className="mt-3 flex items-center justify-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></span>
+              <span className={`text-xs ${socketConnected ? 'text-green-400' : 'text-red-400'}`}>
+                {socketConnected ? 'Conectado' : 'Conectando...'}
+              </span>
+            </div>
           </div>
 
           <Card>
@@ -359,33 +421,45 @@ function App() {
                 placeholder="¿Cómo te llamás?"
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
+                disabled={isLoading}
               />
             </div>
 
             {/* Avatar */}
-            <div className="mb-6">
-              <label className="block text-sm text-gray-400 mb-2">Tu avatar</label>
-              <AvatarSelector 
-                selectedStyle={avatarStyle} 
-                onSelect={setAvatarStyle}
-              />
-              {playerName.trim() && (
-                <div className="flex items-center justify-center mt-4 p-3 bg-white/5 rounded-xl">
-                  <span className="text-sm text-gray-400 mr-3">Vista previa:</span>
-                  <Avatar src={getMyAvatarUrl()} alt="Tu avatar" size="lg" />
-                </div>
-              )}
+            <div className="flex items-center gap-4 mb-6">
+              <Avatar src={getMyAvatarUrl()} alt="Tu avatar" size="lg" />
+              <div className="flex-1">
+                <AvatarSelector 
+                  selectedStyle={avatarStyle} 
+                  onSelect={setAvatarStyle}
+                />
+              </div>
             </div>
 
             {error && (
-              <p className="text-red-400 text-center mb-4 text-sm">{error}</p>
+              <p className="text-red-400 text-center mb-4 text-sm bg-red-500/10 p-3 rounded-lg">{error}</p>
             )}
 
             <div className="space-y-3">
-              <button className="btn-primary" onClick={createRoom}>
-                🎮 Crear Sala
+              <button 
+                className="btn-primary relative" 
+                onClick={createRoom}
+                disabled={isLoading || !socketConnected}
+              >
+                {isLoading ? (
+                  <>
+                    <span className="inline-block w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>
+                    Creando sala...
+                  </>
+                ) : (
+                  '🎮 Crear Sala'
+                )}
               </button>
-              <button className="btn-secondary" onClick={() => setView(VIEWS.JOIN)}>
+              <button 
+                className="btn-secondary" 
+                onClick={() => setView(VIEWS.JOIN)}
+                disabled={isLoading}
+              >
                 📥 Unirse a Sala
               </button>
             </div>
@@ -732,11 +806,11 @@ function App() {
               <div className="mb-4">
                 <label className="block text-sm text-gray-400 mb-2">¿Con quién te encontraste?</label>
                 <select 
-                  className="input-field"
+                  className="input-field-select"
                   value={selectedOpponent}
                   onChange={(e) => setSelectedOpponent(e.target.value)}
                 >
-                  <option value="">Seleccionar jugador</option>
+                  <option value="" className="text-gray-400">Seleccionar jugador</option>
                   {aliveOpponents.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}
@@ -816,11 +890,13 @@ function App() {
   }
 
   // ==================== PANTALLA: RESULTADO DE ENCUENTRO ====================
+  const playerLost = lastEncounter?.loser?.id === currentPlayer?.id;
+  
   if (view === VIEWS.ENCOUNTER_RESULT) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className={`min-h-screen flex items-center justify-center p-4 ${playerLost ? 'bg-red-900/30' : ''}`}>
         <div className="w-full max-w-md">
-          <Card className="text-center">
+          <Card className={`text-center ${playerLost ? 'border-red-500/50 bg-red-500/5' : ''}`}>
             <h2 className="text-2xl font-bold text-white mb-8">
               Resultado del Encuentro
             </h2>
@@ -852,37 +928,96 @@ function App() {
             </div>
             
             {lastEncounter.result === 'tie' ? (
-              <div className="p-6 bg-gray-500/10 rounded-xl mb-6">
-                <p className="text-2xl font-bold text-gray-400">¡Empate!</p>
-                <p className="text-gray-500 mt-2">Ambos siguen jugando</p>
+              <div className="p-8 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-xl mb-6 text-center animate-win">
+                <div className="flex justify-center items-center gap-2 mb-4">
+                  <span className="text-4xl">🤝</span>
+                </div>
+                <p className="text-3xl font-bold text-blue-300">¡Sois aliados!</p>
+                <p className="text-blue-400/70 mt-3 text-lg">Ambos eligieron {lastEncounter.player1.role}</p>
+                <p className="text-gray-500 mt-4">Seguid buscando together 🕵️</p>
+                
+                {/* Corazones flotantes */}
+                <div className="flex justify-center gap-2 mt-4">
+                  <span className="text-2xl animate-pulse">💙</span>
+                  <span className="text-2xl animate-pulse" style={{animationDelay: '0.2s'}}>💜</span>
+                  <span className="text-2xl animate-pulse" style={{animationDelay: '0.4s'}}>💚</span>
+                </div>
               </div>
             ) : (
               <div className="space-y-4 mb-6">
-                <div className="p-6 bg-emerald-500/20 rounded-xl border border-emerald-500/30">
-                  <p className="text-3xl font-bold text-emerald-400">
-                    ¡{lastEncounter.winner?.name} gana!
+                {/* Ganador - Animación prominent */}
+                <div className="p-6 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-xl border-2 border-emerald-500/40 animate-win winner-glow">
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <span className="text-4xl">🏆</span>
+                    <p className="text-3xl font-bold text-emerald-400">
+                      ¡{lastEncounter.winner?.name} GANA!
+                    </p>
+                    <span className="text-4xl">🏆</span>
+                  </div>
+                  <p className="text-emerald-300/70 text-center">
+                    {lastEncounter.winner?.name === currentPlayer?.name 
+                      ? "¡Eres el maestro del escondite!" 
+                      : "Se mantiene en juego"}
                   </p>
                 </div>
-                <div className="p-4 bg-red-500/10 rounded-xl border border-red-500/20">
-                  <p className="text-lg text-red-400">
-                    {lastEncounter.loser?.name} ha sido eliminado
-                  </p>
+
+                {/* Perdedor - Mensaje de lastima */}
+                <div className="p-6 bg-gradient-to-br from-red-500/20 to-red-600/10 rounded-xl border-2 border-red-500/30 animate-lose">
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <span className="text-4xl">💔</span>
+                    <p className="text-2xl font-bold text-red-400">
+                      {lastEncounter.loser?.name} Eliminado
+                    </p>
+                    <span className="text-4xl">💔</span>
+                  </div>
+                  
+                  {/* Mensaje personalizado si el usuario actual perdió */}
+                  {lastEncounter.loser?.id === currentPlayer?.id ? (
+                    <div className="mt-4 p-4 bg-red-500/10 rounded-lg border border-red-500/20">
+                      <p className="text-red-300 text-lg font-medium">
+                        😢 ¡Qué lástima! Has sido eliminado
+                      </p>
+                      <p className="text-red-400/60 text-sm mt-2">
+                        Pero puedes seguir viendo la partida desde la sala
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-red-400/60 text-center mt-2">
+                      {lastEncounter.loser?.name} ha sido eliminado del juego
+                    </p>
+                  )}
+                </div>
+
+                {/* Resumen del encuentro */}
+                <div className="flex justify-center items-center gap-4 py-3">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 uppercase mb-1">Movimiento</p>
+                    <span className="role-badge text-lg">{lastEncounter.player1.role.toUpperCase()}</span>
+                  </div>
+                  <span className="text-2xl text-gray-500">vs</span>
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 uppercase mb-1">Movimiento</p>
+                    <span className="role-badge text-lg">{lastEncounter.player2.role.toUpperCase()}</span>
+                  </div>
                 </div>
               </div>
             )}
             
             <button 
-              className="btn-primary" 
+              className={`btn-primary ${lastEncounter.loser?.id === currentPlayer?.id ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700' : ''}`}
               onClick={() => {
                 setLastEncounter(null);
-                if (currentPlayer?.eliminated) {
+                // Si perdiste o ya estás eliminado, vas a ver la partida
+                if (lastEncounter.loser?.id === currentPlayer?.id || currentPlayer?.eliminated) {
                   setView(VIEWS.HIDDEN);
                 } else {
                   setView(VIEWS.GAME);
                 }
               }}
             >
-              Continuar
+              {lastEncounter.loser?.id === currentPlayer?.id 
+                ? 'Entendido' 
+                : 'Continuar'}
             </button>
           </Card>
 
