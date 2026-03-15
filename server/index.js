@@ -67,10 +67,16 @@ io.on('connection', (socket) => {
     const room = {
       id: roomId,
       host: socket.id,
-      players: [],
+      players: [{
+        id: socket.id,
+        name: 'Host',
+        isHidden: false,
+        isAlive: true,
+        eliminated: false
+      }],
       state: 'lobby', // lobby, ready, playing, finished
       roles: {},
-      pendingEncounters: {} // { encounterId: { player1Id, player2Id, confirmedBy: [] } }
+      pendingEncounters: {}
     };
     
     rooms.set(roomId, room);
