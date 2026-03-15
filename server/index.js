@@ -21,6 +21,11 @@ const rooms = new Map();
 // Roles disponibles
 const ROLES = ['piedra', 'papel', 'tijera'];
 
+// Función para asignar rol aleatorio
+function assignRandomRole() {
+  return ROLES[Math.floor(Math.random() * ROLES.length)];
+}
+
 // Función para asignar rol balanceado (evitando duplicados si es posible)
 function assignBalancedRole(roles, existingRoles) {
   // Contar cuántos de cada rol ya están asignados
@@ -93,6 +98,17 @@ io.on('connection', (socket) => {
     
     if (!room) {
       callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    // Verificar si el jugador ya está en la sala (puede ser el host que se unió)
+    const existingPlayer = room.players.find(p => p.id === socket.id);
+    
+    if (existingPlayer) {
+      // Actualizar nombre del jugador existente
+      existingPlayer.name = playerName;
+      callback({ success: true, room, player: existingPlayer });
+      io.to(roomId).emit('room-updated', room);
       return;
     }
     
