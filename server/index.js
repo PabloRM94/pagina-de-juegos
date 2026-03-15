@@ -48,9 +48,16 @@ io.on('connection', (socket) => {
     const room = {
       id: roomId,
       host: socket.id,
-      players: [],
-      state: 'waiting', // waiting, hidden, playing, finished
-      roles: {}
+      players: [{
+        id: socket.id,
+        name: 'Host',
+        isHidden: false,
+        isAlive: true,
+        eliminated: false
+      }],
+      state: 'lobby', // lobby, ready, playing, finished
+      roles: {},
+      pendingEncounters: {}
     };
     
     rooms.set(roomId, room);
