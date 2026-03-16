@@ -380,7 +380,7 @@ app.get('/api/users', authenticateToken, (req, res) => {
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: ["https://pagina-de-juegos-pywuqj9ng-pablorm94s-projects.vercel.app", "https://pagina-de-juegos.vercel.app", "*"],
     methods: ["GET", "POST"],
     credentials: true
   },

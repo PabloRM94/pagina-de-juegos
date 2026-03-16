@@ -151,7 +151,8 @@ export default function App() {
   const socket = getSocket();
   
   const api = async (ep, opts = {}) => {
-    const r = await fetch(`${SERVER_URL}${ep}`, {
+    const cleanEp = ep.startsWith('/') ? ep : '/' + ep;
+    const r = await fetch(`${SERVER_URL}${cleanEp}`, {
       ...opts,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...opts.headers }
     });
