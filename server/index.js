@@ -5,14 +5,20 @@ import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: "*",
-    methods: ["GET", "POST"]
-  }
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 // Estado en memoria
