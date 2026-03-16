@@ -5,10 +5,25 @@ import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
 
 const app = express();
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+
+// Middleware CORS más explícito
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.use(express.json());
+
+// Endpoint raíz para verificar que el servidor está activo
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Game server running' });
+});
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
