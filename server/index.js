@@ -121,6 +121,8 @@ app.get('/api/trip/config', (req, res) => {
   }
 });
 
+});
+
 // Actualizar configuración del viaje (solo admin)
 app.post('/api/trip/config', authenticateToken, (req, res) => {
   try {

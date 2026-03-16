@@ -202,6 +202,8 @@ function App() {
   const [encounterDenied, setEncounterDenied] = useState(null);
   
   // Estado de conexión
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   
   // Aliados (empates)
@@ -281,8 +283,16 @@ function App() {
         setAllies(prev => [...prev, [result.player1.id, result.player2.id]]);
       }
     });
-    socket.on('encounter-denied', d => { setEncounterDenied(d); setPendingEncounters(p => { const n = {...p}; delete n[d.encounterId]; return n; }); });
-    
+    socket.on('encounter-denied', (data) => {
+      console.log('Encuentro denegado:', data);
+      setEncounterDenied(data);
+      setPendingEncounters(prev => {
+        const updated = { ...prev };
+        delete updated[data.encounterId];
+        return updated;
+      });
+    });
+
     return () => {
       ['connect','disconnect','counter-updated','turbo-state-changed','turbo-triggered','turbo-confirmation-updated','turbo-completed','room-updated','game-started','encounter-proposed','encounter-cancelled','encounter-resolved','encounter-denied'].forEach(e => socket.off(e));
     };
@@ -392,11 +402,36 @@ function App() {
   const proposeEncounter = () => {
     socket.emit('propose-encounter', { roomId: room.id, opponentId: selectedOpponent }, r => { if (r.success) setSelectedOpponent(''); });
   };
-  
-  const confirmEncounter = (eid) => { socket.emit('confirm-encounter', { roomId: room.id, encounterId: eid }, () => {}); };
-  const denyEncounter = (eid) => { socket.emit('deny-encounter', { roomId: room.id, encounterId: eid }, () => {}); };
-  
-  const currentPlayer = room?.players?.find(p => p.id === player?.id);
+
+  const confirmEncounter = (encounterId) => {
+    socket.emit('confirm-encounter', { 
+      roomId: room.id, 
+      encounterId 
+    }, (response) => {
+      if (!response.success) {
+        setError(response.error);
+      }
+    });
+  };
+
+  const denyEncounter = (encounterId) => {
+    socket.emit('deny-encounter', { 
+      roomId: room.id, 
+      encounterId 
+    }, (response) => {
+      if (!response.success) {
+        setError(response.error);
+      }
+    });
+  };
+
+  const getCurrentPlayer = () => {
+    if (!room || !player) return null;
+    return room.players.find(p => p.id === player.id);
+  };
+
+  const currentPlayer = getCurrentPlayer();
+  const myRole = room?.roles?.[player?.id];
   const aliveOpponents = room?.players?.filter(p => p.id !== player?.id && p.isAlive && !p.eliminated) || [];
   
   // ==================== LOGIN / REGISTER ====================
@@ -857,19 +892,96 @@ function App() {
                 <input type="text" className="input-field text-center" placeholder="Código sala" value={roomCode} onChange={e => setRoomCode(e.target.value.toUpperCase())} maxLength={8} />
                 <button className="btn-secondary w-full mt-2" onClick={joinRoom}>Unirse</button>
               </div>
+            )}
+            
+            {currentPlayer?.eliminated && (
+              <div className="mt-4 p-3 bg-red-500/10 rounded-xl text-center">
+                <p className="text-red-400 text-lg">✖ Has sido eliminado</p>
+              </div>
+            )}
+          </Card>
+
+          {/* Notificaciones de encuentros propuestos */}
+          {Object.values(pendingEncounters).some(e => e.targetId === player?.id) && (
+            <Card className="bg-amber-500/10 border-amber-500/30">
+              <h3 className="text-amber-400 font-semibold mb-4">⚠️ Te han propuesto un encuentro</h3>
+              {Object.values(pendingEncounters)
+                .filter(e => e.targetId === player?.id)
+                .map(enc => (
+                  <div key={enc.encounterId} className="text-center">
+                    <div className="flex items-center justify-center gap-3 mb-4">
+                      <Avatar src={getMyAvatarUrl()} alt="Vos" size="md" />
+                      <span className="text-gray-400">vs</span>
+                      <Avatar src={getPlayerAvatarUrl(enc.proposerName)} alt={enc.proposerName} size="md" />
+                    </div>
+                    <p className="text-white mb-4">
+                      <strong className="text-indigo-400">{enc.proposerName}</strong> dice que se encontró contigo
+                    </p>
+                    <button 
+                      className="btn-success" 
+                      onClick={() => confirmEncounter(enc.encounterId)}
+                    >
+                      ✓ Confirmar encuentro
+                    </button>
+                    <button 
+                      className="btn-secondary mt-2 text-red-400 border-red-400/30 hover:bg-red-400/10"
+                      onClick={() => denyEncounter(enc.encounterId)}
+                    >
+                      ✕ Denegar encuentro
+                    </button>
+                  </div>
+                ))
+              }
             </Card>
           )}
-          
-          {player && room && (
-            <>
-              <Card>
-                <div className="text-center mb-4"><p className="text-gray-400">Sala</p><div className="room-code-display">{room.id}</div></div>
-                <div className="flex items-center gap-4">
-                  <Avatar src={getMyAvatarUrl()} alt="Tu avatar" size="lg" />
-                  <div><h2 className="text-xl font-bold text-white">{player.name}</h2><StatusBadge status={currentPlayer?.isHidden ? 'hidden' : 'waiting'} /></div>
-                </div>
-                {view !== VIEWS.HIDDEN && !currentPlayer?.isHidden && <button className="btn-success mt-4 w-full" onClick={setHidden}>✓ Ya estoy escondido</button>}
-              </Card>
+
+          {/* Notificación de encuentro denegado */}
+          {encounterDenied && (
+            <Card className="bg-red-500/10 border-red-500/30">
+              <div className="text-center">
+                <div className="text-4xl mb-4">🚫</div>
+                <h3 className="text-red-400 font-semibold mb-2">Encuentro Denegado</h3>
+                <p className="text-gray-300">
+                  <strong className="text-white">{encounterDenied.deniedBy}</strong> ha denegado el encuentro con <strong className="text-white">{encounterDenied.deniedTo}</strong>
+                </p>
+                <p className="text-gray-500 text-sm mt-2">El encuentro ha sido cancelado</p>
+                <button 
+                  className="btn-secondary mt-4"
+                  onClick={() => setEncounterDenied(null)}
+                >
+                  Entendido
+                </button>
+              </div>
+            </Card>
+          )}
+
+          {/* Tus encuentros propuestos */}
+          {Object.values(pendingEncounters).some(e => e.proposerId === player?.id) && (
+            <Card>
+              <h3 className="text-gray-400 font-semibold mb-4">⏳ Esperando confirmación</h3>
+              {Object.values(pendingEncounters)
+                .filter(e => e.proposerId === player?.id)
+                .map(enc => (
+                  <div key={enc.encounterId} className="text-center">
+                    <div className="flex items-center justify-center gap-3 mb-2">
+                      <Avatar src={getMyAvatarUrl()} alt="Vos" size="md" />
+                      <span className="text-gray-400">vs</span>
+                      <Avatar src={getPlayerAvatarUrl(enc.targetName)} alt={enc.targetName} size="md" />
+                    </div>
+                    <p className="text-gray-400 text-sm">
+                      Has propuesto encontrarte con <strong className="text-white">{enc.targetName}</strong>
+                    </p>
+                    <p className="text-gray-500 text-xs mt-2">Espera que confirme</p>
+                  </div>
+                ))
+              }
+            </Card>
+          )}
+
+          {/* Reportar encuentro */}
+          {!currentPlayer?.eliminated && Object.keys(pendingEncounters).length === 0 && (
+            <Card>
+              <h3 className="section-title">Reportar Encuentro</h3>
               
               {Object.values(pendingEncounters).some(e => e.targetId === player?.id) && (
                 <Card className="bg-amber-500/10 border-amber-500/30">
