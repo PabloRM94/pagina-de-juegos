@@ -3,6 +3,11 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import db from './database.js';
+
+const JWT_SECRET = 'trip-secret-key-2026';
 
 const app = express();
 
@@ -23,6 +28,309 @@ app.use(express.json());
 // Endpoint raíz para verificar que el servidor está activo
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Game server running' });
+});
+
+// ==================== AUTH API ====================
+
+// Registro de usuario
+app.post('/api/register', async (req, res) => {
+  try {
+    const { name, password } = req.body;
+    
+    if (!name || !password) {
+      return res.status(400).json({ success: false, error: 'Nombre y contraseña requeridos' });
+    }
+    
+    const existingUser = db.prepare('SELECT id FROM users WHERE name = ?').get(name);
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'El usuario ya existe' });
+    }
+    
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const isAdmin = name === 'Domingoadmin' ? 1 : 0;
+    
+    const result = db.prepare('INSERT INTO users (name, password, is_admin) VALUES (?, ?, ?)').run(name, hashedPassword, isAdmin);
+    
+    const today = new Date().toISOString().split('T')[0];
+    db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(result.lastInsertRowid, today);
+    
+    const token = jwt.sign({ id: result.lastInsertRowid, name, isAdmin }, JWT_SECRET, { expiresIn: '7d' });
+    
+    res.json({ success: true, user: { id: result.lastInsertRowid, name, isAdmin }, token });
+  } catch (error) {
+    console.error('Error en registro:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+// Login de usuario
+app.post('/api/login', async (req, res) => {
+  try {
+    const { name, password } = req.body;
+    
+    if (!name || !password) {
+      return res.status(400).json({ success: false, error: 'Nombre y contraseña requeridos' });
+    }
+    
+    const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos' });
+    }
+    
+    const validPassword = await bcrypt.compare(password, user.password);
+    if (!validPassword) {
+      return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos' });
+    }
+    
+    const token = jwt.sign({ id: user.id, name: user.name, isAdmin: user.is_admin }, JWT_SECRET, { expiresIn: '7d' });
+    
+    res.json({ success: true, user: { id: user.id, name: user.name, isAdmin: user.is_admin }, token });
+  } catch (error) {
+    console.error('Error en login:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+// Middleware para verificar token
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Token requerido' });
+  }
+  
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ success: false, error: 'Token inválido' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// ==================== TRIP CONFIG API ====================
+
+app.get('/api/trip/config', (req, res) => {
+  try {
+    const config = db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
+    res.json({ success: true, config });
+  } catch (error) {
+    console.error('Error obteniendo config:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+// ==================== COUNTERS API ====================
+
+app.get('/api/counters/:userId', authenticateToken, (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    
+    let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
+    
+    if (!counter) {
+      db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, targetDate);
+      counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
+    }
+    
+    res.json({ success: true, counter });
+  } catch (error) {
+    console.error('Error obteniendo contadores:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.get('/api/counters', authenticateToken, (req, res) => {
+  try {
+    const { date } = req.query;
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    
+    const counters = db.prepare(`SELECT c.*, u.name as user_name FROM counters c JOIN users u ON c.user_id = u.id WHERE c.date = ?`).all(targetDate);
+    
+    res.json({ success: true, counters });
+  } catch (error) {
+    console.error('Error obteniendo contadores:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.post('/api/counters/:userId', authenticateToken, (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { counterType, action } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+    
+    let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
+    
+    if (!counter) {
+      db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, today);
+      counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
+    }
+    
+    const oldValue = counter[counterType];
+    const newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
+    
+    db.prepare(`UPDATE counters SET ${counterType} = ? WHERE user_id = ? AND date = ?`).run(newValue, userId, today);
+    
+    db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(userId, counterType, oldValue, newValue);
+    
+    io.emit('counter-updated', { userId, counterType, newValue, date: today });
+    
+    res.json({ success: true, newValue });
+  } catch (error) {
+    console.error('Error actualizando contador:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.get('/api/counters/history', authenticateToken, (req, res) => {
+  try {
+    const { startDate, endDate, counterType } = req.query;
+    
+    let query = `SELECT ch.*, u.name as user_name FROM counter_history ch JOIN users u ON ch.user_id = u.id WHERE 1=1`;
+    const params = [];
+    
+    if (startDate) { query += ' AND DATE(ch.timestamp) >= ?'; params.push(startDate); }
+    if (endDate) { query += ' AND DATE(ch.timestamp) <= ?'; params.push(endDate); }
+    if (counterType) { query += ' AND ch.counter_type = ?'; params.push(counterType); }
+    
+    query += ' ORDER BY ch.timestamp DESC';
+    
+    const history = db.prepare(query).all(...params);
+    res.json({ success: true, history });
+  } catch (error) {
+    console.error('Error obteniendo historial:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+// ==================== TURBO LATA API ====================
+
+app.get('/api/turbo/state', authenticateToken, (req, res) => {
+  try {
+    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    res.json({ success: true, turboState });
+  } catch (error) {
+    console.error('Error obteniendo estado turbo:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.post('/api/turbo/toggle', authenticateToken, (req, res) => {
+  try {
+    const { active } = req.body;
+    
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede activar el Turbo Lata' });
+    }
+    
+    db.prepare('UPDATE turbo_state SET active = ? WHERE id = 1').run(active ? 1 : 0);
+    
+    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    io.emit('turbo-state-changed', { active });
+    
+    res.json({ success: true, turboState });
+  } catch (error) {
+    console.error('Error toggle turbo:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.post('/api/turbo/trigger', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede ejecutar Turbo Lata' });
+    }
+    
+    const users = db.prepare('SELECT id, name FROM users WHERE is_admin = 0').all();
+    
+    if (users.length === 0) {
+      return res.status(400).json({ success: false, error: 'No hay usuarios disponibles' });
+    }
+    
+    const randomUser = users[Math.floor(Math.random() * users.length)];
+    
+    db.prepare(`UPDATE turbo_state SET current_target_user_id = ?, current_confirmations = 0, last_triggered = CURRENT_TIMESTAMP WHERE id = 1`).run(randomUser.id);
+    
+    db.prepare('DELETE FROM turbo_confirmations').run();
+    
+    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    
+    io.emit('turbo-triggered', { targetUserId: randomUser.id, targetUserName: randomUser.name, requiredConfirmations: turboState.required_confirmations, currentConfirmations: 0 });
+    
+    res.json({ success: true, turboState, targetUser: randomUser });
+  } catch (error) {
+    console.error('Error trigger turbo:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.post('/api/turbo/confirm', authenticateToken, (req, res) => {
+  try {
+    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    
+    if (!turboState.active || !turboState.current_target_user_id) {
+      return res.status(400).json({ success: false, error: 'No hay Turbo Lata activo' });
+    }
+    
+    const existing = db.prepare(`SELECT id FROM turbo_confirmations WHERE target_user_id = ? AND confirmed_by_user_id = ?`).get(turboState.current_target_user_id, req.user.id);
+    
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Ya has confirmado' });
+    }
+    
+    db.prepare(`INSERT INTO turbo_confirmations (target_user_id, confirmed_by_user_id) VALUES (?, ?)`).run(turboState.current_target_user_id, req.user.id);
+    
+    const confirmations = db.prepare(`SELECT COUNT(*) as count FROM turbo_confirmations WHERE target_user_id = ?`).get(turboState.current_target_user_id);
+    
+    const newCount = confirmations.count;
+    const required = turboState.required_confirmations;
+    
+    db.prepare('UPDATE turbo_state SET current_confirmations = ? WHERE id = 1').run(newCount);
+    
+    if (newCount >= required) {
+      const today = new Date().toISOString().split('T')[0];
+      
+      let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(turboState.current_target_user_id, today);
+      
+      if (!counter) {
+        db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(turboState.current_target_user_id, today);
+        counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(turboState.current_target_user_id, today);
+      }
+      
+      const oldValue = counter.turbolatas;
+      const newValue = oldValue + 1;
+      
+      db.prepare('UPDATE counters SET turbolatas = ? WHERE user_id = ? AND date = ?').run(newValue, turboState.current_target_user_id, today);
+      
+      db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(turboState.current_target_user_id, 'turbolatas', oldValue, newValue);
+      
+      db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
+      db.prepare('DELETE FROM turbo_confirmations').run();
+      
+      io.emit('turbo-completed', { targetUserId: turboState.current_target_user_id, turbolatasCount: newValue });
+    }
+    
+    io.emit('turbo-confirmation-updated', { currentConfirmations: newCount, requiredConfirmations: required });
+    
+    res.json({ success: true, currentConfirmations: newCount, requiredConfirmations: required });
+  } catch (error) {
+    console.error('Error confirmando turbo:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+app.get('/api/users', authenticateToken, (req, res) => {
+  try {
+    const users = db.prepare('SELECT id, name, is_admin FROM users').all();
+    res.json({ success: true, users });
+  } catch (error) {
+    console.error('Error obteniendo usuarios:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
 });
 
 const httpServer = createServer(app);
