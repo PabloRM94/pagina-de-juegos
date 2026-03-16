@@ -163,9 +163,6 @@ app.post('/api/trip/config', authenticateToken, (req, res) => {
     res.status(500).json({ success: false, error: 'Error en el servidor' });
   }
 });
-    res.status(500).json({ success: false, error: 'Error en el servidor' });
-  }
-});
 
 // ==================== COUNTERS API ====================
 
