@@ -75,36 +75,6 @@ function AvatarSelector({ selectedStyle, onSelect }) {
   );
 }
 
-function Countdown({ targetDate, onComplete }) {
-  const [time, setTime] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-  
-  useEffect(() => {
-    const calc = () => {
-      const diff = new Date(targetDate) - new Date();
-      if (diff > 0) {
-        return { days: Math.floor(diff / (1000*60*60*24)), hours: Math.floor((diff/(1000*60*60))%24), minutes: Math.floor((diff/1000/60)%60), seconds: Math.floor((diff/1000)%60) };
-      }
-      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-    };
-    setTime(calc());
-    const t = setInterval(() => { const nt = calc(); setTime(nt); if(nt.days===0 && nt.hours===0 && nt.minutes===0 && nt.seconds===0){ onComplete(); clearInterval(t); } }, 1000);
-    return () => clearInterval(t);
-  }, [targetDate, onComplete]);
-  
-  return (
-    <div className="flex justify-center gap-4">
-      {Object.entries(time).map(([u, v]) => (
-        <div key={u} className="text-center">
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-xl p-4 min-w-[80px]">
-            <span className="text-4xl font-bold text-white">{String(v).padStart(2,'0')}</span>
-          </div>
-          <p className="text-gray-400 text-sm mt-2 capitalize">{u}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function CounterCard({ title, icon, value, onInc, onDec, color }) {
   return (
     <Card className={`${color}`}>
@@ -136,6 +106,90 @@ export default function App() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
+=======
+// Componente Footer
+function Footer() {
+  return (
+    <footer className="text-center py-4 text-gray-500 text-xs mt-8">
+      © 2026 Todos los derechos reservados. Hecho por Pabels con ❤️
+    </footer>
+  );
+}
+
+// Componente Menú Desplegable
+function MenuDropdown({ activeTab, setActiveTab, onLogout }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  const menuItems = [
+    { id: 'contadores', label: 'Contadores', icon: '📊' },
+    { id: 'graficos', label: 'Gráficos', icon: '📈' },
+    { id: 'juegos', label: 'Juegos', icon: '🎮' },
+  ];
+  
+  const handleSelect = (id) => {
+    setActiveTab(id);
+    setIsOpen(false);
+  };
+  
+  return (
+    <div className="relative">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-white"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      
+      {isOpen && (
+        <div className="absolute left-0 top-12 bg-gray-800 rounded-lg shadow-xl border border-gray-700 py-2 min-w-[180px] z-50">
+          {menuItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => handleSelect(item.id)}
+              className={`w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors flex items-center gap-3 ${
+                activeTab === item.id ? 'bg-gray-700 text-indigo-400' : 'text-white'
+              }`}
+            >
+              <span>{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+          <hr className="my-2 border-gray-700" />
+          <button
+            onClick={() => { setIsOpen(false); onLogout(); }}
+            className="w-full text-left px-4 py-3 hover:bg-gray-700 transition-colors flex items-center gap-3 text-red-400"
+          >
+            <span>🚪</span>
+            <span>Cerrar sesión</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const [view, setView] = useState(VIEWS.LOGIN);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [tripConfig, setTripConfig] = useState(null);
+  const [counters, setCounters] = useState({});
+  const [users, setUsers] = useState([]);
+  const [turboState, setTurboState] = useState(null);
+  const [chartFilter, setChartFilter] = useState({ counterType: '' });
+  
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Estados adicionales de UI (de feature/menu-tabs)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('contadores');
+  
+  // Estados del juego (de feature)
   const [playerName, setPlayerName] = useState('');
   const [avatarStyle, setAvatarStyle] = useState('adventurer');
   const [avatarSeed, setAvatarSeed] = useState('');
@@ -146,8 +200,16 @@ export default function App() {
   const [pendingEncounters, setPendingEncounters] = useState({});
   const [lastEncounter, setLastEncounter] = useState(null);
   const [encounterDenied, setEncounterDenied] = useState(null);
+  
+  // Estado de conexión
   const [socketConnected, setSocketConnected] = useState(false);
   
+  // Aliados (empates)
+  const [allies, setAllies] = useState([]);
+  
+  // Espectador
+  const [isSpectator, setIsSpectator] = useState(false);
+
   const socket = getSocket();
   
   const api = async (ep, opts = {}) => {
@@ -191,24 +253,48 @@ export default function App() {
       if (cr.success) { const m = {}; cr.counters.forEach(x => m[x.user_id] = x); setCounters(m); }
     });
     
+    // Eventos del juego de escondite
     socket.on('room-updated', ur => { setRoom(ur); const me = ur.players.find(p => p.id === player?.id); if (me) setPlayer(me); });
-    socket.on('encounter-proposed', d => setPendingEncounters(p => ({ ...p, [d.encounterId]: d })));
-    socket.on('encounter-cancelled', d => { setPendingEncounters(p => { const n = {...p}; delete n[d.encounterId]; return n; }); });
-    socket.on('encounter-resolved', r => { setLastEncounter(r); setView(VIEWS.ENCOUNTER_RESULT); setPendingEncounters({}); });
+    socket.on('game-started', (data) => {
+      setRoom(data.room);
+      const me = data.room.players.find(p => p.id === player?.id);
+      if (me?.isAlive && !me?.eliminated) {
+        setView(VIEWS.GAME);
+      }
+    });
+    socket.on('encounter-proposed', (data) => {
+      setPendingEncounters(prev => ({ ...prev, [data.encounterId || data.encounterId]: data }));
+    });
+    socket.on('encounter-cancelled', (data) => {
+      setPendingEncounters(prev => { const updated = { ...prev }; delete updated[data.encounterId]; return updated; });
+    });
+    socket.on('encounter-resolved', (result) => {
+      setLastEncounter(result);
+      if (result.result !== 'tie') {
+        setView(VIEWS.ENCOUNTER_RESULT);
+      }
+      setPendingEncounters({});
+      if (result.loser?.id === player?.id) {
+        setPlayer(prev => ({ ...prev, eliminated: true, isAlive: false }));
+      }
+      if (result.result === 'tie') {
+        setAllies(prev => [...prev, [result.player1.id, result.player2.id]]);
+      }
+    });
     socket.on('encounter-denied', d => { setEncounterDenied(d); setPendingEncounters(p => { const n = {...p}; delete n[d.encounterId]; return n; }); });
     
-    return () => { ['connect','disconnect','counter-updated','turbo-state-changed','turbo-triggered','turbo-confirmation-updated','turbo-completed','room-updated','encounter-proposed','encounter-cancelled','encounter-resolved','encounter-denied'].forEach(e => socket.off(e)); };
+    return () => {
+      ['connect','disconnect','counter-updated','turbo-state-changed','turbo-triggered','turbo-confirmation-updated','turbo-completed','room-updated','game-started','encounter-proposed','encounter-cancelled','encounter-resolved','encounter-denied'].forEach(e => socket.off(e));
+    };
   }, [socket, token, player]);
   
-  const handleRegister = async () => {
-    setIsLoading(true); setError('');
-    const r = await api('/api/register', { method: 'POST', body: JSON.stringify({ name: username, password }) });
-    setIsLoading(false);
-    if (r.success) { setToken(r.token); setUser(r.user); setView(VIEWS.DASHBOARD); }
-    else setError(r.error);
+  // Generar seed para el avatar
+  const getAvatarSeed = () => {
+    if (avatarSeed.trim()) return avatarSeed.trim();
+    return playerName.trim() || Math.random().toString(36).substring(7);
   };
-  
-  const handleLogin = async () => {
+
+  const handleRegister = async () => {
     setIsLoading(true); setError('');
     const r = await api('/api/login', { method: 'POST', body: JSON.stringify({ name: username, password }) });
     setIsLoading(false);
@@ -262,18 +348,39 @@ export default function App() {
   };
   
   const joinRoom = () => {
-    if (!playerName.trim() || !roomCode.trim()) return;
-    socket.emit('join-room', { roomId: roomCode.trim().toUpperCase(), playerName: playerName.trim(), avatarStyle, avatarSeed: getAvatarSeed() }, r => {
-      if (r.success) { 
-        setRoom(r.room); 
-        setPlayer(r.player); 
+    if (!playerName.trim() || !roomCode.trim()) {
+      setError('Ingresa tu nombre y el código de sala');
+      return;
+    }
+    
+    socket.emit('join-room', { 
+      roomId: roomCode.trim().toUpperCase(), 
+      playerName: playerName.trim(),
+      avatarStyle: avatarStyle,
+      avatarSeed: getAvatarSeed()
+    }, (response) => {
+      if (response.success) {
+        setRoom(response.room);
+        setPlayer(response.player);
         
         // Detectar si se une tarde como espectador
-        const joinedLate = r.room.state === 'playing';
-        const hasEliminated = r.room.players?.some(p => p.eliminated);
+        const joinedLate = response.room.state === 'playing';
+        const hasEliminated = response.room.players?.some(p => p.eliminated);
         setIsSpectator(joinedLate && hasEliminated);
         
-        setView(r.room.state === 'playing' ? VIEWS.GAME : VIEWS.GAME_LOBBY); 
+        // Determinar vista según estado
+        if (response.room.state === 'lobby' || response.room.state === 'ready') {
+          if (response.player.isHidden) {
+            setView(VIEWS.HIDDEN);
+          } else {
+            setView(VIEWS.LOBBY);
+          }
+        } else if (response.room.state === 'playing') {
+          setView(VIEWS.GAME);
+        }
+        setError('');
+      } else {
+        setError(response.error);
       }
     });
   };
@@ -298,11 +405,18 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-2xl">
+            <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-2xl animate-float">
               <span className="text-5xl">🏖️</span>
             </div>
-            <h1 className="text-4xl font-bold gradient-text mb-2">Viaje 2026</h1>
+            <h1 className="text-4xl font-bold gradient-text mb-2">
+              Viaje 2026
+            </h1>
             <p className="text-gray-400">{view === VIEWS.LOGIN ? 'Iniciá sesión' : 'Creá tu cuenta'}</p>
+            
+            {/* Indicador de conexión */}
+            <div className="mt-3 flex items-center justify-center">
+              <ConnectionIndicator connected={socketConnected} />
+            </div>
           </div>
           <Card>
             <div className="mb-4">
@@ -323,6 +437,7 @@ export default function App() {
               </button>
             </div>
           </Card>
+          <Footer />
         </div>
       </div>
     );
@@ -343,6 +458,11 @@ export default function App() {
             </div>
             <h1 className="text-3xl font-bold text-white mb-2">¡El viaje se acerca!</h1>
             <p className="text-gray-400">Aún no estáis preparados para lo que viene...</p>
+            
+            {/* Indicador de conexión */}
+            <div className="mt-3 flex items-center justify-center">
+              <ConnectionIndicator connected={socketConnected} />
+            </div>
           </div>
           <Card className="bg-gradient-to-br from-purple-600/20 to-indigo-600/20 border-purple-500/30">
             <p className="text-purple-300 mb-4">Tiempo restante</p>
@@ -436,14 +556,124 @@ export default function App() {
                 >
                   ⏪ Reiniciar Contador
                 </button>
+=======
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== PANTALLA: LOBBY ====================
+  if (view === VIEWS.LOBBY) {
+    return (
+      <div className="min-h-screen p-4 pb-24">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between pt-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Sala de Juego</h1>
+              <p className="text-gray-400 text-sm">Código de la sala:</p>
+              <div className="room-code-display mt-1">{room?.id}</div>
+            </div>
+            <ConnectionIndicator connected={socketConnected} />
+          </div>
+
+          {/* Tu estado */}
+          <Card>
+            <div className="flex items-center gap-4">
+              <Avatar src={getMyAvatarUrl()} alt="Tu avatar" size="lg" />
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-white">{playerName}</h2>
+                <p className="text-gray-400 text-sm">¡Listo para esconderse!</p>
+              </div>
+            </div>
+            
+            <button className="btn-success mt-6" onClick={setHidden}>
+              ✓ Ya estoy escondido
+            </button>
+          </Card>
+
+          {/* Jugadores */}
+          <Card>
+            <h3 className="section-title">Jugadores ({room?.players?.length || 0})</h3>
+            <div className="space-y-2">
+              {room?.players?.map((p) => (
+                <div key={p.id} className="player-item">
+                  <div className="flex items-center gap-3">
+                    <Avatar 
+                      src={getPlayerAvatarUrl(p.name)} 
+                      alt={p.name} 
+                      size="sm" 
+                    />
+                    <span className="text-white font-medium">
+                      {p.name} {p.id === player?.id && <span className="text-indigo-400">(vos)</span>}
+                    </span>
+                  </div>
+                  <StatusBadge status={p.isHidden ? 'hidden' : 'waiting'} />
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Instrucciones */}
+          <div className="text-center p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20">
+            <p className="text-indigo-300 text-sm">
+              📍 Escondete y luego marcá que estás listo
+            </p>
+            <p className="text-gray-500 text-xs mt-2">
+              Cuando todos estén escondidos, comenzará el juego
+            </p>
+          </div>
+
+          {error && <p className="text-red-400 text-center text-sm">{error}</p>}
+
+          <button 
+            className="btn-secondary text-red-400 border-red-400/30 hover:bg-red-400/10"
+            onClick={() => {
+              setView(VIEWS.HOME);
+              setRoom(null);
+              setPlayer(null);
+            }}
+          >
+            Salir de la Sala
+          </button>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  // ==================== PANTALLA: ESPERANDO A OTROS ====================
+  if (view === VIEWS.HIDDEN) {
+    const allHidden = room?.players?.every(p => p.isHidden);
+    
+    return (
+      <div className="min-h-screen p-4 pb-24">
+        <div className="max-w-md mx-auto space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between pt-4">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/20 mb-4">
+                <span className="text-3xl">🏃</span>
+              </div>
+              <h1 className="text-2xl font-bold text-white">¡Escondido!</h1>
+              <div className="room-code-display mt-2 text-2xl">{room?.id}</div>
+            </div>
+            <ConnectionIndicator connected={socketConnected} />
+          </div>
+
+          {/* Estado del juego */}
+          {room?.state === 'ready' && !allHidden && (
+            <Card className="bg-amber-500/10 border-amber-500/30">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
+                <span className="text-amber-300">Esperando que todos se escondan...</span>
               </div>
             </Card>
           )}
-          
-          <div className="text-gray-500 text-sm">
-            <p>Viaje: 27-29 Marzo 2026</p>
-            <p>Usuario: {user?.name}</p>
-          </div>
+            
+            {myRole && (
+              <div className="mt-4 p-3 bg-amber-500/10 rounded-xl text-center">
         </div>
       </div>
     );
@@ -600,10 +830,16 @@ export default function App() {
     return (
       <div className="min-h-screen p-4 pb-24">
         <div className="max-w-md mx-auto space-y-6">
-          <div className="flex items-center justify-between">
-            <button onClick={() => setView(VIEWS.DASHBOARD)} className="btn-secondary">← Dashboard</button>
-            <h1 className="text-xl font-bold text-white">Escondite</h1>
-            <div className="w-16"></div>
+          {/* Header */}
+          <div className="flex items-center justify-between pt-4">
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/20 mb-4 animate-glow">
+                <span className="text-3xl">🎯</span>
+              </div>
+              <h1 className="text-2xl font-bold text-white">Encounters</h1>
+              <div className="room-code-display mt-2 text-2xl">{room?.id}</div>
+            </div>
+            <ConnectionIndicator connected={socketConnected} />
           </div>
           
           {!player && (
@@ -683,6 +919,87 @@ export default function App() {
               </Card>
             </>
           )}
+=======
+              <button 
+                className="btn-warning" 
+                onClick={proposeEncounter}
+                disabled={!selectedOpponent}
+              >
+                ✓ Proponer encuentro
+              </button>
+            </Card>
+          )}
+          
+          {/* Mensaje de espectador si se unió tarde con eliminados */}
+          {isSpectator && (
+            <Card className="bg-amber-500/10 border-amber-500/30">
+              <p className="text-amber-400 text-center">👁️ Te uniste tarde a la partida. Eres espectador.</p>
+            </Card>
+          )}
+
+          {/* Jugadores */}
+          <Card>
+            <h3 className="section-title">Jugadores ({room?.players?.length || 0})</h3>
+            <div className="space-y-2">
+              {room?.players?.map((p) => {
+                // Verificar si es aliado del jugador actual
+                const isAlly = allies.some(pair => 
+                  pair.includes(p.id) && pair.includes(player?.id)
+                );
+                return (
+                  <div key={p.id} className="player-item">
+                    <div className="flex items-center gap-3">
+                      <Avatar 
+                        src={getPlayerAvatarUrl(p.name)} 
+                        alt={p.name} 
+                        size="sm" 
+                      />
+                      <span className="text-white font-medium">
+                        {p.name} {p.id === player?.id && <span className="text-indigo-400">(vos)</span>}
+                        {isAlly && <span className="text-blue-400 ml-1">💙</span>}
+                      </span>
+                    </div>
+                    <StatusBadge status={
+                      p.eliminated ? 'eliminated' : 'hidden'
+                    } />
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {room?.state === 'finished' && (
+            <Card className="bg-gradient-to-br from-amber-500/20 to-orange-500/20 border-amber-500/30">
+              <h3 className="text-center text-amber-400 text-xl font-bold mb-4">🏆 Ganador</h3>
+              <div className="flex items-center justify-center gap-4">
+                <Avatar 
+                  src={getPlayerAvatarUrl(room.players.find(p => p.isAlive)?.name || 'Empate')} 
+                  alt="Ganador" 
+                  size="xl" 
+                />
+                <div>
+                  <p className="text-3xl font-bold text-white">
+                    {room.players.find(p => p.isAlive)?.name || 'Empate'}
+                  </p>
+                  <p className="text-gray-400 text-sm">¡Felicidades!</p>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {error && <p className="text-red-400 text-center text-sm">{error}</p>}
+
+          <button 
+            className="btn-secondary text-red-400 border-red-400/30 hover:bg-red-400/10"
+            onClick={() => {
+              setView(VIEWS.HOME);
+              setRoom(null);
+              setPlayer(null);
+            }}
+          >
+            Salir de la Sala
+          </button>
+          <Footer />
         </div>
       </div>
     );
@@ -711,6 +1028,9 @@ export default function App() {
             )}
             <button className="btn-primary" onClick={() => { setLastEncounter(null); setView(VIEWS.GAME); }}>Continuar</button>
           </Card>
+
+          {error && <p className="text-red-400 text-center text-sm mt-4">{error}</p>}
+          <Footer />
         </div>
       </div>
     );

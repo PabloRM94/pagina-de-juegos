@@ -23,3 +23,6 @@ nul
 # Logs
 *.log
 npm-debug.log*
+
+# Database
+server/trip.db
