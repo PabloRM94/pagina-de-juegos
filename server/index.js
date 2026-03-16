@@ -121,6 +121,40 @@ app.get('/api/trip/config', (req, res) => {
   }
 });
 
+// Actualizar configuración del viaje (solo admin)
+app.post('/api/trip/config', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede modificar la configuración' });
+    }
+    
+    const { start_date, end_date, trip_started, trip_ended } = req.body;
+    
+    let updates = [];
+    let params = [];
+    
+    if (start_date) { updates.push('start_date = ?'); params.push(start_date); }
+    if (end_date) { updates.push('end_date = ?'); params.push(end_date); }
+    if (trip_started !== undefined) { updates.push('trip_started = ?'); params.push(trip_started ? 1 : 0); }
+    if (trip_ended !== undefined) { updates.push('trip_ended = ?'); params.push(trip_ended ? 1 : 0); }
+    
+    if (updates.length > 0) {
+      params.push(1); // id = 1
+      db.prepare(`UPDATE trip_config SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    }
+    
+    const config = db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
+    
+    // Notificar a todos los clientes
+    io.emit('trip-config-updated', config);
+    
+    res.json({ success: true, config });
+  } catch (error) {
+    console.error('Error actualizando config:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
 // ==================== COUNTERS API ====================
 
 app.get('/api/counters/:userId', authenticateToken, (req, res) => {
@@ -347,21 +381,19 @@ const io = new Server(httpServer, {
 // Estado en memoria
 const rooms = new Map();
 
-// Roles disponibles
-const ROLES = ['piedra', 'papel', 'tijera', 'lagarto', 'spock'];
+// Roles disponibles - SOLO piedra, papel, tijera
+const ROLES = ['piedra', 'papel', 'tijera'];
 
-// Función para resolver encuentro (piedra-papel-tijera-lagarto-spock)
+// Función para resolver encuentro (piedra-papel-tijera)
 // Returns: 'tie', 'player1', o 'player2'
 function resolveEncounter(role1, role2) {
   if (role1 === role2) return 'tie';
   
   // Victoria de role1 sobre role2
   const wins = {
-    piedra: ['tijera', 'lagarto'],
-    papel: ['piedra', 'spock'],
-    tijera: ['papel', 'lagarto'],
-    lagarto: ['spock', 'papel'],
-    spock: ['tijera', 'piedra']
+    piedra: ['tijera'],
+    papel: ['piedra'],
+    tijera: ['papel']
   };
   
   return wins[role1]?.includes(role2) ? 'player1' : 'player2';

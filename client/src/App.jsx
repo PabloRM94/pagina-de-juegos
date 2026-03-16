@@ -338,7 +338,40 @@ export default function App() {
               if (r.success) setTripConfig(r.config);
             }} />
           </Card>
-          <div className="text-gray-500 text-sm"><p>Viaje: 27-29 Marzo 2026</p><p>Usuario: {user?.name}</p></div>
+          
+          {/* Panel de Admin para configurar viaje */}
+          {user?.isAdmin && (
+            <Card className="bg-gradient-to-br from-red-600/20 to-orange-600/20 border-red-500/30">
+              <h3 className="text-xl font-bold text-white mb-4">⚙️ Configuración del Viaje</h3>
+              <div className="space-y-3">
+                <button 
+                  className="btn-primary"
+                  onClick={async () => {
+                    await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ trip_started: true }) });
+                    const r = await api('/api/trip/config');
+                    if (r.success) setTripConfig(r.config);
+                  }}
+                >
+                  🚀 Iniciar Viaje Ahora
+                </button>
+                <button 
+                  className="btn-secondary text-red-400"
+                  onClick={async () => {
+                    await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ trip_started: false }) });
+                    const r = await api('/api/trip/config');
+                    if (r.success) setTripConfig(r.config);
+                  }}
+                >
+                  ⏪ Reiniciar Contador
+                </button>
+              </div>
+            </Card>
+          )}
+          
+          <div className="text-gray-500 text-sm">
+            <p>Viaje: 27-29 Marzo 2026</p>
+            <p>Usuario: {user?.name}</p>
+          </div>
         </div>
       </div>
     );
