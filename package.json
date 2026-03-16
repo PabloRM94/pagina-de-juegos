@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Juego del Escondite - Encuentra a tus amigos y ganá",
   "scripts": {
+    "start": "cd server && npm start",
     "predev": "npm run install:all && npm run kill",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm start",
