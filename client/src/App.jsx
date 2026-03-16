@@ -151,8 +151,10 @@ export default function App() {
   const socket = getSocket();
   
   const api = async (ep, opts = {}) => {
-    const cleanEp = ep.startsWith('/') ? ep : '/' + ep;
-    const r = await fetch(`${SERVER_URL}${cleanEp}`, {
+    // Eliminar trailing slash de SERVER_URL y leading slash de ep
+    const baseUrl = SERVER_URL.replace(/\/$/, '');
+    const cleanEp = ep.replace(/^\/+/, '');
+    const r = await fetch(`${baseUrl}/${cleanEp}`, {
       ...opts,
       headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...opts.headers }
     });
