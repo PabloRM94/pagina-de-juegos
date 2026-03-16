@@ -320,7 +320,8 @@ export default function App() {
   
   // ==================== WAITING (COUNTDOWN) ====================
   // Verificar si puede ver el dashboard: trip_started Y (no admin_only O es admin)
-  const canSeeDashboard = tripConfig?.trip_started && (!tripConfig?.admin_only || user?.isAdmin);
+  // Usamos admin_only !== 0 para manejar el caso donde es 0 o undefined
+  const canSeeDashboard = tripConfig?.trip_started && (tripConfig?.admin_only === 0 || tripConfig?.admin_only === undefined || user?.isAdmin);
   
   if (!canSeeDashboard) {
     return (
@@ -386,14 +387,18 @@ export default function App() {
                   </div>
                   <button 
                     onClick={async () => {
-                      const newValue = tripConfig?.admin_only ? false : true;
+                      // Toggle: si es 1 o true -> 0, si es 0 o false/undefined -> 1
+                      const currentValue = tripConfig?.admin_only === 1 ? 1 : 0;
+                      const newValue = currentValue === 1 ? 0 : 1;
+                      console.log('Toggle admin_only:', currentValue, '->', newValue);
                       await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ admin_only: newValue }) });
                       const r = await api('/api/trip/config');
+                      console.log('Response:', r);
                       if (r.success) setTripConfig(r.config);
                     }}
-                    className={`w-12 h-6 rounded-full transition-all ${tripConfig?.admin_only ? 'bg-indigo-500' : 'bg-gray-600'}`}
+                    className={`w-12 h-6 rounded-full transition-all ${tripConfig?.admin_only === 1 ? 'bg-indigo-500' : 'bg-gray-600'}`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.admin_only ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.admin_only === 1 ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                   </button>
                 </div>
                 
@@ -528,14 +533,18 @@ export default function App() {
                   </div>
                   <button 
                     onClick={async () => {
-                      const newValue = tripConfig?.admin_only ? false : true;
+                      // Toggle: si es 1 o true -> 0, si es 0 o false/undefined -> 1
+                      const currentValue = tripConfig?.admin_only === 1 ? 1 : 0;
+                      const newValue = currentValue === 1 ? 0 : 1;
+                      console.log('Toggle admin_only:', currentValue, '->', newValue);
                       await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ admin_only: newValue }) });
                       const r = await api('/api/trip/config');
+                      console.log('Response:', r);
                       if (r.success) setTripConfig(r.config);
                     }}
-                    className={`w-12 h-6 rounded-full transition-all ${tripConfig?.admin_only ? 'bg-indigo-500' : 'bg-gray-600'}`}
+                    className={`w-12 h-6 rounded-full transition-all ${tripConfig?.admin_only === 1 ? 'bg-indigo-500' : 'bg-gray-600'}`}
                   >
-                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.admin_only ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.admin_only === 1 ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
                   </button>
                 </div>
                 
