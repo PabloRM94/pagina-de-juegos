@@ -3,7 +3,7 @@
   "build": {
     "builder": "NIXPACKS",
     "nixpacksConfig": {
-      "install": ["python3"]
+      "install": ["python3", "nodejs_20"]
     },
     "buildCommand": "cd server && npm install",
     "startCommand": "cd server && npm start"
