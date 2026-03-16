@@ -319,7 +319,10 @@ export default function App() {
   }
   
   // ==================== WAITING (COUNTDOWN) ====================
-  if (!tripConfig?.trip_started) {
+  // Verificar si puede ver el dashboard: trip_started Y (no admin_only O es admin)
+  const canSeeDashboard = tripConfig?.trip_started && (!tripConfig?.admin_only || user?.isAdmin);
+  
+  if (!canSeeDashboard) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-md space-y-8 text-center">
@@ -373,6 +376,25 @@ export default function App() {
                       if (r.success) setTripConfig(r.config);
                     }}
                   />
+                </div>
+                
+                {/* Toggle: Solo admin o todos */}
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                  <div className="text-left">
+                    <p className="text-white font-medium">Modo solo admin</p>
+                    <p className="text-gray-400 text-xs">Solo vos podés ver el dashboard</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      const newValue = tripConfig?.admin_only ? false : true;
+                      await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ admin_only: newValue }) });
+                      const r = await api('/api/trip/config');
+                      if (r.success) setTripConfig(r.config);
+                    }}
+                    className={`w-12 h-6 rounded-full transition-all ${tripConfig?.admin_only ? 'bg-indigo-500' : 'bg-gray-600'}`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.admin_only ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                  </button>
                 </div>
                 
                 <button 
@@ -496,6 +518,25 @@ export default function App() {
                       if (r.success) setTripConfig(r.config);
                     }}
                   />
+                </div>
+                
+                {/* Toggle: Solo admin o todos */}
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                  <div className="text-left">
+                    <p className="text-white font-medium">Modo solo admin</p>
+                    <p className="text-gray-400 text-xs">Solo vos podés ver el dashboard</p>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      const newValue = tripConfig?.admin_only ? false : true;
+                      await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ admin_only: newValue }) });
+                      const r = await api('/api/trip/config');
+                      if (r.success) setTripConfig(r.config);
+                    }}
+                    className={`w-12 h-6 rounded-full transition-all ${tripConfig?.admin_only ? 'bg-indigo-500' : 'bg-gray-600'}`}
+                  >
+                    <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.admin_only ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                  </button>
                 </div>
                 
                 <button 

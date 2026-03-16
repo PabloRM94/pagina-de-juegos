@@ -133,7 +133,7 @@ app.post('/api/trip/config', authenticateToken, (req, res) => {
       return res.status(403).json({ success: false, error: 'Solo el admin puede modificar la configuración' });
     }
     
-    const { start_date, end_date, trip_started, trip_ended } = req.body;
+    const { start_date, end_date, trip_started, trip_ended, admin_only } = req.body;
     
     let updates = [];
     let params = [];
@@ -142,6 +142,7 @@ app.post('/api/trip/config', authenticateToken, (req, res) => {
     if (end_date) { updates.push('end_date = ?'); params.push(end_date); console.log('Updating end_date:', end_date); }
     if (trip_started !== undefined) { updates.push('trip_started = ?'); params.push(trip_started ? 1 : 0); console.log('Updating trip_started:', trip_started); }
     if (trip_ended !== undefined) { updates.push('trip_ended = ?'); params.push(trip_ended ? 1 : 0); console.log('Updating trip_ended:', trip_ended); }
+    if (admin_only !== undefined) { updates.push('admin_only = ?'); params.push(admin_only ? 1 : 0); console.log('Updating admin_only:', admin_only); }
     
     if (updates.length > 0) {
       params.push(1); // id = 1

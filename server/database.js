@@ -24,7 +24,8 @@ db.exec(`
     start_date DATETIME NOT NULL,
     end_date DATETIME NOT NULL,
     trip_started INTEGER DEFAULT 0,
-    trip_ended INTEGER DEFAULT 0
+    trip_ended INTEGER DEFAULT 0,
+    admin_only INTEGER DEFAULT 0
   );
 
   -- Contadores por día por usuario
