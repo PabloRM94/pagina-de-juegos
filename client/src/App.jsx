@@ -811,6 +811,7 @@ function App() {
           >
             Salir de la Sala
           </button>
+          <Footer />
         </div>
       </div>
     );
