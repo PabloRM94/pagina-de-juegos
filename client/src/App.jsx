@@ -343,13 +343,46 @@ export default function App() {
           {user?.isAdmin && (
             <Card className="bg-gradient-to-br from-red-600/20 to-orange-600/20 border-red-500/30">
               <h3 className="text-xl font-bold text-white mb-4">⚙️ Configuración del Viaje</h3>
+              
               <div className="space-y-3">
+                <div className="text-left">
+                  <label className="block text-sm text-gray-400 mb-1">Fecha de inicio</label>
+                  <input 
+                    type="datetime-local" 
+                    className="input-field"
+                    defaultValue={tripConfig?.start_date ? tripConfig.start_date.slice(0, 16) : ''}
+                    onChange={async (e) => {
+                      const newDate = new Date(e.target.value).toISOString().replace('T', ' ').slice(0, 19);
+                      await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ start_date: newDate }) });
+                      const r = await api('/api/trip/config');
+                      if (r.success) setTripConfig(r.config);
+                    }}
+                  />
+                </div>
+                
+                <div className="text-left">
+                  <label className="block text-sm text-gray-400 mb-1">Fecha de fin</label>
+                  <input 
+                    type="datetime-local" 
+                    className="input-field"
+                    defaultValue={tripConfig?.end_date ? tripConfig.end_date.slice(0, 16) : ''}
+                    onChange={async (e) => {
+                      const newDate = new Date(e.target.value).toISOString().replace('T', ' ').slice(0, 19);
+                      await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ end_date: newDate }) });
+                      const r = await api('/api/trip/config');
+                      if (r.success) setTripConfig(r.config);
+                    }}
+                  />
+                </div>
+                
                 <button 
                   className="btn-primary"
                   onClick={async () => {
-                    await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ trip_started: true }) });
-                    const r = await api('/api/trip/config');
-                    if (r.success) setTripConfig(r.config);
+                    console.log('Iniciando viaje...');
+                    const r1 = await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ trip_started: true }) });
+                    console.log('Respuesta:', r1);
+                    const r2 = await api('/api/trip/config');
+                    if (r2.success) setTripConfig(r2.config);
                   }}
                 >
                   🚀 Iniciar Viaje Ahora
@@ -357,9 +390,11 @@ export default function App() {
                 <button 
                   className="btn-secondary text-red-400"
                   onClick={async () => {
-                    await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ trip_started: false }) });
-                    const r = await api('/api/trip/config');
-                    if (r.success) setTripConfig(r.config);
+                    console.log('Reiniciando contador...');
+                    const r1 = await api('/api/trip/config', { method: 'POST', body: JSON.stringify({ trip_started: false }) });
+                    console.log('Respuesta:', r1);
+                    const r2 = await api('/api/trip/config');
+                    if (r2.success) setTripConfig(r2.config);
                   }}
                 >
                   ⏪ Reiniciar Contador

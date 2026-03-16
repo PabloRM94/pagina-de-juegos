@@ -124,7 +124,12 @@ app.get('/api/trip/config', (req, res) => {
 // Actualizar configuración del viaje (solo admin)
 app.post('/api/trip/config', authenticateToken, (req, res) => {
   try {
+    console.log('=== TRIP CONFIG UPDATE ===');
+    console.log('User:', req.user);
+    console.log('Body:', req.body);
+    
     if (!req.user.isAdmin) {
+      console.log('ERROR: No es admin');
       return res.status(403).json({ success: false, error: 'Solo el admin puede modificar la configuración' });
     }
     
@@ -133,17 +138,21 @@ app.post('/api/trip/config', authenticateToken, (req, res) => {
     let updates = [];
     let params = [];
     
-    if (start_date) { updates.push('start_date = ?'); params.push(start_date); }
-    if (end_date) { updates.push('end_date = ?'); params.push(end_date); }
-    if (trip_started !== undefined) { updates.push('trip_started = ?'); params.push(trip_started ? 1 : 0); }
-    if (trip_ended !== undefined) { updates.push('trip_ended = ?'); params.push(trip_ended ? 1 : 0); }
+    if (start_date) { updates.push('start_date = ?'); params.push(start_date); console.log('Updating start_date:', start_date); }
+    if (end_date) { updates.push('end_date = ?'); params.push(end_date); console.log('Updating end_date:', end_date); }
+    if (trip_started !== undefined) { updates.push('trip_started = ?'); params.push(trip_started ? 1 : 0); console.log('Updating trip_started:', trip_started); }
+    if (trip_ended !== undefined) { updates.push('trip_ended = ?'); params.push(trip_ended ? 1 : 0); console.log('Updating trip_ended:', trip_ended); }
     
     if (updates.length > 0) {
       params.push(1); // id = 1
       db.prepare(`UPDATE trip_config SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+      console.log('DB updated successfully');
+    } else {
+      console.log('No updates to make');
     }
     
     const config = db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
+    console.log('Config after update:', config);
     
     // Notificar a todos los clientes
     io.emit('trip-config-updated', config);
@@ -151,6 +160,9 @@ app.post('/api/trip/config', authenticateToken, (req, res) => {
     res.json({ success: true, config });
   } catch (error) {
     console.error('Error actualizando config:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
     res.status(500).json({ success: false, error: 'Error en el servidor' });
   }
 });
