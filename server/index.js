@@ -264,7 +264,8 @@ io.on('connection', (socket) => {
       player1Id: socket.id,
       player2Id: opponentId,
       confirmedBy: [socket.id],
-      status: 'pending'
+      status: 'pending',
+      denied: false
     };
     
     // Notificar al oponente
@@ -364,6 +365,52 @@ io.on('connection', (socket) => {
     callback({ success: true, encounterResult });
     io.to(roomId).emit('encounter-resolved', encounterResult);
     io.to(roomId).emit('room-updated', room);
+  });
+
+  // Denegar encuentro (el objetivo dice que no se encontró)
+  socket.on('deny-encounter', (data, callback) => {
+    const { roomId, encounterId } = data;
+    console.log('Denegando encuentro:', { roomId, encounterId, socketId: socket.id });
+    const room = rooms.get(roomId);
+    
+    if (!room) {
+      callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    const encounter = room.pendingEncounters[encounterId];
+    if (!encounter) {
+      callback({ success: false, error: 'Encuentro no encontrado' });
+      return;
+    }
+    
+    // Solo el objetivo (player2) puede denegar
+    if (encounter.player2Id !== socket.id) {
+      callback({ success: false, error: 'Solo el objetivo puede denegar el encuentro' });
+      return;
+    }
+    
+    // Marcar como denegado
+    encounter.denied = true;
+    
+    // Obtener nombres de jugadores para la notificación
+    const player1 = room.players.find(p => p.id === encounter.player1Id);
+    const player2 = room.players.find(p => p.id === encounter.player2Id);
+    
+    // Eliminar encuentro pendiente
+    delete room.pendingEncounters[encounterId];
+    
+    callback({ success: true });
+    
+    // Notificar a todos que el encuentro fue denegado
+    io.to(roomId).emit('encounter-denied', {
+      encounterId,
+      deniedBy: player2.name,
+      deniedTo: player1.name
+    });
+    
+    io.to(roomId).emit('room-updated', room);
+    console.log(`Encuentro denegado: ${player1.name} vs ${player2.name}`);
   });
 
   // Obtener info de sala

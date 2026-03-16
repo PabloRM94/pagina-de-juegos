@@ -127,6 +127,7 @@ function App() {
   const [selectedOpponent, setSelectedOpponent] = useState('');
   const [pendingEncounters, setPendingEncounters] = useState({});
   const [lastEncounter, setLastEncounter] = useState(null);
+  const [encounterDenied, setEncounterDenied] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
@@ -236,6 +237,17 @@ function App() {
       if (result.loser?.id === player?.id) {
         setPlayer(prev => ({ ...prev, eliminated: true, isAlive: false }));
       }
+    });
+
+    // Escuchar encuentro denegado
+    socket.on('encounter-denied', (data) => {
+      console.log('Encuentro denegado:', data);
+      setEncounterDenied(data);
+      setPendingEncounters(prev => {
+        const updated = { ...prev };
+        delete updated[data.encounterId];
+        return updated;
+      });
     });
 
     return () => {
@@ -369,6 +381,17 @@ function App() {
 
   const confirmEncounter = (encounterId) => {
     socket.emit('confirm-encounter', { 
+      roomId: room.id, 
+      encounterId 
+    }, (response) => {
+      if (!response.success) {
+        setError(response.error);
+      }
+    });
+  };
+
+  const denyEncounter = (encounterId) => {
+    socket.emit('deny-encounter', { 
       roomId: room.id, 
       encounterId 
     }, (response) => {
@@ -769,9 +792,35 @@ function App() {
                     >
                       ✓ Confirmar encuentro
                     </button>
+                    <button 
+                      className="btn-secondary mt-2 text-red-400 border-red-400/30 hover:bg-red-400/10"
+                      onClick={() => denyEncounter(enc.encounterId)}
+                    >
+                      ✕ Denegar encuentro
+                    </button>
                   </div>
                 ))
               }
+            </Card>
+          )}
+
+          {/* Notificación de encuentro denegado */}
+          {encounterDenied && (
+            <Card className="bg-red-500/10 border-red-500/30">
+              <div className="text-center">
+                <div className="text-4xl mb-4">🚫</div>
+                <h3 className="text-red-400 font-semibold mb-2">Encuentro Denegado</h3>
+                <p className="text-gray-300">
+                  <strong className="text-white">{encounterDenied.deniedBy}</strong> ha denegado el encuentro con <strong className="text-white">{encounterDenied.deniedTo}</strong>
+                </p>
+                <p className="text-gray-500 text-sm mt-2">El encuentro ha sido cancelado</p>
+                <button 
+                  className="btn-secondary mt-4"
+                  onClick={() => setEncounterDenied(null)}
+                >
+                  Entendido
+                </button>
+              </div>
             </Card>
           )}
 
