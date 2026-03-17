@@ -29,7 +29,7 @@ export function RegisterView({
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-2xl">
             <span className="text-5xl">🏖️</span>
           </div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Viaje 2026</h1>
+          <h1 className="text-4xl font-bold gradient-text mb-2">Casa rural Domingo de Braguitas</h1>
           <p className="text-gray-400">Creá tu cuenta</p>
         </div>
         

@@ -14,6 +14,8 @@ export function useGame(token) {
   const [encounterDenied, setEncounterDenied] = useState(null);
   const [selectedOpponent, setSelectedOpponent] = useState('');
   const [isSpectator, setIsSpectator] = useState(false);
+  const [allies, setAllies] = useState(new Set()); // Set de IDs de aliados
+  const [gameFinished, setGameFinished] = useState(null); // Info de victoria del equipo
   
   const socket = getSocket();
   
@@ -46,15 +48,26 @@ export function useGame(token) {
     const handleEncounterResolved = (result) => {
       setLastEncounter(result);
       setPendingEncounters({});
+      
+      // Si el encuentro fue con un aliado, agregarlo a la lista
+      if (result.isAlly && player) {
+        const allyId = result.player1.id === player.id 
+          ? result.player2.id 
+          : result.player1.id;
+        setAllies(prev => new Set([...prev, allyId]));
+      }
+    };
+    
+    const handleGameFinished = (data) => {
+      setGameFinished(data);
     };
     
     const handleEncounterDenied = (data) => {
+      console.log('Encuentro denegado recibido:', data);
+      // Primero limpiar todos los pending encounters
+      setPendingEncounters({});
+      // Luego guardar la info de denegación
       setEncounterDenied(data);
-      setPendingEncounters(prev => {
-        const next = { ...prev };
-        delete next[data.encounterId];
-        return next;
-      });
     };
     
     socket.on('room-updated', handleRoomUpdated);
@@ -62,6 +75,7 @@ export function useGame(token) {
     socket.on('encounter-cancelled', handleEncounterCancelled);
     socket.on('encounter-resolved', handleEncounterResolved);
     socket.on('encounter-denied', handleEncounterDenied);
+    socket.on('game-finished', handleGameFinished);
     
     return () => {
       socket.off('room-updated', handleRoomUpdated);
@@ -69,6 +83,7 @@ export function useGame(token) {
       socket.off('encounter-cancelled', handleEncounterCancelled);
       socket.off('encounter-resolved', handleEncounterResolved);
       socket.off('encounter-denied', handleEncounterDenied);
+      socket.off('game-finished', handleGameFinished);
     };
   }, [socket, player]);
   
@@ -190,6 +205,8 @@ export function useGame(token) {
         setPendingEncounters({});
         setSelectedOpponent('');
         setIsSpectator(false);
+        setAllies(new Set());
+        setGameFinished(null);
         resolve(response);
       });
     });
@@ -206,6 +223,8 @@ export function useGame(token) {
     setEncounterDenied(null);
     setSelectedOpponent('');
     setIsSpectator(false);
+    setAllies(new Set());
+    setGameFinished(null);
   }, []);
   
   // Utilidades
@@ -225,6 +244,8 @@ export function useGame(token) {
     selectedOpponent,
     setSelectedOpponent,
     isSpectator,
+    allies,
+    gameFinished,
     createRoom,
     joinRoom,
     leaveRoom,
@@ -234,7 +255,8 @@ export function useGame(token) {
     denyEncounter,
     clearGame,
     setLastEncounter,
-    setEncounterDenied
+    setEncounterDenied,
+    setGameFinished
   };
 }
 

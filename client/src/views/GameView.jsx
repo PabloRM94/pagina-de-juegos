@@ -56,6 +56,8 @@ const getRoleName = (role) => {
  * @param {function} props.setAvatarSeed - Setter de seed de avatar
  * @param {string} props.roomCode - Código de sala
  * @param {function} props.setRoomCode - Setter de código de sala
+ * @param {Set} props.allies - Set de IDs de aliados
+ * @param {object} props.gameFinished - Info de victoria del equipo
  */
 export function GameView({
   view,
@@ -83,7 +85,9 @@ export function GameView({
   avatarSeed,
   setAvatarSeed,
   roomCode,
-  setRoomCode
+  setRoomCode,
+  allies,
+  gameFinished
 }) {
   const isGameView = view === VIEWS.GAME || view === VIEWS.GAME_LOBBY || view === VIEWS.HIDDEN;
   
@@ -93,22 +97,20 @@ export function GameView({
   const isEliminated = currentPlayer?.eliminated;
   
   return (
-    <div className={`min-h-screen p-4 pb-24 ${isEliminated ? 'bg-red-900/30' : ''}`}>
+    <div className={`p-4 pb-24 ${isEliminated ? 'bg-red-900/30' : ''}`}>
       <div className="max-w-md mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <button onClick={onBackToDashboard} className="btn-secondary">← Dashboard</button>
-          <h1 className="text-xl font-bold text-white">Escondite</h1>
-          <div className="w-16"></div>
+        <div className="text-center pt-2">
+          <h1 className="text-xl font-bold text-white">🎭 Escondite</h1>
         </div>
         
         {/* Lobby: Entry */}
         {showLobby && (
           <Card>
             <h3 className="text-white font-bold mb-4">Tu nombre en el juego</h3>
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4 mb-4">
               <Avatar src={getMyAvatarUrl(avatarStyle, avatarSeed)} alt="Tu avatar" size="lg" />
-              <div className="flex-1">
+              <div className="flex-1 w-full">
                 <input
                   type="text"
                   className="input-field mb-3"
@@ -214,7 +216,7 @@ export function GameView({
                         />
                         <span className="text-gray-400">vs</span>
                         <Avatar
-                          src={getPlayerAvatarUrl(avatarStyle, enc.proposerName)}
+                          src={getPlayerAvatarUrl(enc.proposerAvatarStyle || 'adventurer', enc.proposerAvatarSeed || enc.proposerName)}
                           alt={enc.proposerName}
                           size="md"
                         />
@@ -278,26 +280,33 @@ export function GameView({
             <Card>
               <h3 className="section-title">Jugadores ({room.players.length})</h3>
               <div className="space-y-2">
-                {room.players.map(p => (
-                  <div key={p.id} className="player-item">
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        src={getPlayerAvatarUrl(avatarStyle, p.name)}
-                        alt={p.name}
-                        size="sm"
-                      />
-                      <span className="text-white font-medium">
-                        {p.name} {p.id === player?.id && <span className="text-indigo-400">(vos)</span>}
-                        {room?.roles?.[p.id] && (
-                          <span className="ml-1 text-lg" title={getRoleName(room.roles[p.id])}>
-                            {getRoleEmoji(room.roles[p.id])}
+                {room.players.map(p => {
+                  const isAlly = allies.has(p.id);
+                  const playerAvatarStyle = p.avatarStyle || 'adventurer';
+                  const playerAvatarSeed = p.avatarSeed || p.name;
+                  return (
+                    <div key={p.id} className="player-item">
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          src={getPlayerAvatarUrl(playerAvatarStyle, playerAvatarSeed)}
+                          alt={p.name}
+                          size="sm"
+                        />
+                        <span className="text-white font-medium">
+                          {p.name} {p.id === player?.id && <span className="text-indigo-400">(vos)</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isAlly && (
+                          <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">
+                            🤝 Aliado
                           </span>
                         )}
-                      </span>
+                        <StatusBadge status={p.eliminated ? 'eliminated' : p.isHidden ? 'hidden' : 'waiting'} />
+                      </div>
                     </div>
-                    <StatusBadge status={p.eliminated ? 'eliminated' : p.isHidden ? 'hidden' : 'waiting'} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Card>
           </>

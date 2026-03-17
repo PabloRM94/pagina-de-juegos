@@ -14,6 +14,8 @@ import { VIEWS } from '../constants/index.js';
  * @param {function} props.setUsername - Setter de username
  * @param {string} props.password - Password actual
  * @param {function} props.setPassword - Setter de password
+ * @param {boolean} props.guestMode - Si el modo invitado está activado
+ * @param {function} props.onLoginAsGuest - Callback para entrar como invitado
  */
 export function LoginView({ 
   onLogin, 
@@ -24,7 +26,9 @@ export function LoginView({
   username,
   setUsername,
   password,
-  setPassword
+  setPassword,
+  guestMode,
+  onLoginAsGuest
 }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -33,7 +37,7 @@ export function LoginView({
           <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 mb-6 shadow-2xl">
             <span className="text-5xl">🏖️</span>
           </div>
-          <h1 className="text-4xl font-bold gradient-text mb-2">Viaje 2026</h1>
+          <h1 className="text-4xl font-bold gradient-text mb-2">Casa rural Domingo de Braguitas</h1>
           <p className="text-gray-400">Iniciá sesión</p>
         </div>
         
@@ -90,6 +94,25 @@ export function LoginView({
             </button>
           </div>
         </Card>
+        
+        {/* Botón de invitado */}
+        {guestMode && (
+          <Card className="bg-gray-800/50 border-gray-700">
+            <div className="text-center">
+              <p className="text-gray-400 text-sm mb-3">¿Solo quieres probar?</p>
+              <button
+                className="btn-warning w-full"
+                onClick={onLoginAsGuest}
+                disabled={loading}
+              >
+                🎮 Entrar como invitado
+              </button>
+              <p className="text-gray-500 text-xs mt-2">
+                Sin registro, solo para probar
+              </p>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

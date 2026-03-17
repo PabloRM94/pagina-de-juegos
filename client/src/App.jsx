@@ -11,16 +11,20 @@ import {
   RegisterView,
   WaitingView,
   DashboardView,
+  GamesView,
+  AdminView,
   GameView,
   EncounterResultView,
-  ResetPasswordView
+  ResetPasswordView,
+  StatsView,
+  GameWinnerView
 } from './views/index.js';
 
-import { ConnectionStatus } from './components/index.js';
+import { AppLayout, ConnectionStatus, LogoutModal } from './components/index.js';
 
 export default function App() {
   // === Auth ===
-  const { user, token, loading: authLoading, error: authError, login, register, logout } = useAuth();
+  const { user, token, loading: authLoading, error: authError, login, register, logout, loginAsGuest } = useAuth();
   
   // === Counters ===
   const { counters, users, updateCounter, refreshCounters } = useCounters(token);
@@ -33,6 +37,9 @@ export default function App() {
   
   // === View State ===
   const [view, setView] = useState(VIEWS.LOGIN);
+  
+  // === Logout Modal ===
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   
   // === Form State ===
   const [username, setUsername] = useState('');
@@ -62,7 +69,10 @@ export default function App() {
     confirmEncounter,
     denyEncounter,
     setLastEncounter,
-    setEncounterDenied
+    setEncounterDenied,
+    allies,
+    gameFinished,
+    setGameFinished
   } = useGame(token);
   
   // === Socket Connection ===
@@ -88,6 +98,22 @@ export default function App() {
     
     loadInitialData();
   }, [token]);
+  
+  // === Load trip config even without token (for guest mode) ===
+  useEffect(() => {
+    const loadTripConfig = async () => {
+      try {
+        const configRes = await api.get(ENDPOINTS.TRIP_CONFIG);
+        if (configRes.success) {
+          setTripConfig(prev => ({ ...prev, ...configRes.config }));
+        }
+      } catch (err) {
+        console.error('Error loading trip config:', err);
+      }
+    };
+    
+    loadTripConfig();
+  }, []);
   
   // === Socket Events ===
   useEffect(() => {
@@ -151,6 +177,17 @@ export default function App() {
     };
   }, [refreshCounters]);
   
+  // === Handle game finished ===
+  useEffect(() => {
+    if (gameFinished && (view === VIEWS.GAME || view === VIEWS.ENCOUNTER_RESULT || view === VIEWS.GAME_LOBBY || view === VIEWS.HIDDEN)) {
+      if (lastEncounter) {
+        setView(VIEWS.ENCOUNTER_RESULT);
+      } else {
+        setView(VIEWS.GAME_WINNER);
+      }
+    }
+  }, [gameFinished, lastEncounter, view]);
+
   // === Handlers ===
   const handleLogin = async () => {
     const result = await login(username, password);
@@ -166,11 +203,20 @@ export default function App() {
     }
   };
   
+  const handleLoginAsGuest = async () => {
+    const result = await loginAsGuest();
+    if (result.success) {
+      setView(VIEWS.GAMES);
+    }
+  };
+  
   const handleLogout = () => {
+    leaveRoom();
     logout();
     setView(VIEWS.LOGIN);
     setUsername('');
     setPassword('');
+    setShowLogoutModal(false);
   };
   
   const handleUpdateCounter = async (userId, counterType, action) => {
@@ -195,7 +241,11 @@ export default function App() {
   
   const handleContinueFromEncounter = () => {
     setLastEncounter(null);
-    setView(VIEWS.GAME);
+    if (gameFinished) {
+      setView(VIEWS.GAME_WINNER);
+    } else {
+      setView(VIEWS.GAME);
+    }
   };
   
   // === Reset Password Handler ===
@@ -214,90 +264,132 @@ export default function App() {
     user?.isAdmin
   );
   
-  // === Render ===
+  const isAdmin = user?.isAdmin === 1 || user?.isAdmin === true;
   
-  // Login / Register
+  // === Handle navigation from tabs ===
+  const handleTabNavigate = (targetView) => {
+    if (room && targetView !== VIEWS.GAME && targetView !== VIEWS.GAME_LOBBY && targetView !== VIEWS.HIDDEN) {
+      leaveRoom();
+    }
+    if (!gameFinished) {
+      setGameFinished(null);
+    }
+    setView(targetView);
+  };
+  
+  // === Handle navigation to game ===
+  const handleNavigateToGame = () => {
+    setView(VIEWS.GAME);
+  };
+  
+  // === Handle back to dashboard from game ===
+  const handleBackToDashboardFromGame = () => {
+    leaveRoom();
+    setGameFinished(null);
+    setView(VIEWS.GAMES);
+  };
+  
+  // === Render functions for different views ===
+  
+  // Login / Register views (no layout, no tabs)
   if (view === VIEWS.LOGIN) {
     return (
-      <LoginView
-        onLogin={handleLogin}
-        onSwitchToRegister={() => setView(VIEWS.REGISTER)}
-        onForgotPassword={handleForgotPassword}
-        loading={authLoading}
-        error={authError}
-        username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
-      />
+      <>
+        <ConnectionStatus />
+        <LoginView
+          onLogin={handleLogin}
+          onSwitchToRegister={() => setView(VIEWS.REGISTER)}
+          onForgotPassword={handleForgotPassword}
+          loading={authLoading}
+          error={authError}
+          username={username}
+          setUsername={setUsername}
+          password={password}
+          setPassword={setPassword}
+          guestMode={tripConfig?.guest_mode === 1}
+          onLoginAsGuest={handleLoginAsGuest}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
     );
   }
   
   if (view === VIEWS.REGISTER) {
     return (
-      <RegisterView
-        onRegister={handleRegister}
-        onSwitchToLogin={() => setView(VIEWS.LOGIN)}
-        loading={authLoading}
-        error={authError}
-        username={username}
-        setUsername={setUsername}
-        password={password}
-        setPassword={setPassword}
-      />
+      <>
+        <ConnectionStatus />
+        <RegisterView
+          onRegister={handleRegister}
+          onSwitchToLogin={() => setView(VIEWS.LOGIN)}
+          loading={authLoading}
+          error={authError}
+          username={username}
+          setUsername={setUsername}
+          password={password}
+          setPassword={setPassword}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
     );
   }
   
-  // Reset Password (simplified - username + new password + confirm)
+  // Reset Password
   if (view === VIEWS.RESET_PASSWORD) {
-    return (
-      <ResetPasswordView
-        onBackToLogin={() => setView(VIEWS.LOGIN)}
-      />
-    );
-  }
-
-  // Waiting (countdown) - solo si admin quiere verla
-  if (view === VIEWS.WAITING) {
     return (
       <>
         <ConnectionStatus />
-        <WaitingView
-          tripConfig={tripConfig}
-          user={user}
-          onConfigUpdate={handleConfigUpdate}
-          onNavigateToDashboard={() => setView(VIEWS.DASHBOARD)}
+        <ResetPasswordView
+          onBackToLogin={() => setView(VIEWS.LOGIN)}
         />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
       </>
     );
   }
   
   // Waiting (countdown) - si no puede ver dashboard
-  if (!canSeeDashboard) {
+  if (!canSeeDashboard || view === VIEWS.WAITING) {
     return (
-      <>
-        <ConnectionStatus />
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        showTabs={false}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
         <WaitingView
           tripConfig={tripConfig}
           user={user}
           onConfigUpdate={handleConfigUpdate}
           onNavigateToDashboard={() => setView(VIEWS.DASHBOARD)}
         />
-      </>
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
     );
   }
   
   // Dashboard
   if (view === VIEWS.DASHBOARD) {
     return (
-      <>
-        <ConnectionStatus />
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
         <DashboardView
           user={user}
-          tripConfig={tripConfig}
-          onLogout={handleLogout}
-          onNavigateToGame={() => setView(VIEWS.GAME)}
-          onNavigateToWaiting={() => setView(VIEWS.WAITING)}
           counters={counters}
           users={users}
           onUpdateCounter={handleUpdateCounter}
@@ -306,18 +398,149 @@ export default function App() {
           onTriggerTurbo={handleTriggerTurbo}
           onConfirmTurbo={handleConfirmTurbo}
         />
-        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-500 text-xs bg-gray-900/80">
-          © Hecho por Pabels con amor ❤️
-        </footer>
-      </>
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
     );
   }
   
-  // Game
+  // Games View
+  if (view === VIEWS.GAMES) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <GamesView
+          onNavigate={handleNavigateToGame}
+        />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+  
+  // Stats View
+  if (view === VIEWS.STATS) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <StatsView
+          counters={counters}
+          users={users}
+        />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+  
+  // Admin View
+  if (view === VIEWS.ADMIN) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <AdminView
+          user={user}
+          tripConfig={tripConfig}
+          turboState={turboState}
+          onConfigUpdate={handleConfigUpdate}
+          onToggleTurbo={handleToggleTurbo}
+          onTriggerTurbo={handleTriggerTurbo}
+          onNavigateToWaiting={() => setView(VIEWS.WAITING)}
+        />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+  
+  // Game Winner (victoria del equipo)
+  if (view === VIEWS.GAME_WINNER) {
+    return (
+      <AppLayout 
+        currentView={VIEWS.GAMES} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <GameWinnerView
+          gameFinished={gameFinished}
+          currentPlayer={currentPlayer}
+          onBackToDashboard={handleBackToDashboardFromGame}
+          avatarStyle={avatarStyle}
+        />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+  
+  // Encounter Result
+  if (view === VIEWS.ENCOUNTER_RESULT) {
+    return (
+      <AppLayout 
+        currentView={VIEWS.GAMES} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+        showTabs={false}
+      >
+        <EncounterResultView
+          encounter={lastEncounter}
+          currentPlayer={currentPlayer}
+          onContinue={handleContinueFromEncounter}
+          avatarStyle={avatarStyle}
+        />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+  
+  // Game (Lobby and Playing)
   if (view === VIEWS.GAME || view === VIEWS.GAME_LOBBY || view === VIEWS.HIDDEN) {
     return (
-      <>
-        <ConnectionStatus />
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
         <GameView
           view={view}
           room={room}
@@ -328,7 +551,7 @@ export default function App() {
           encounterDenied={encounterDenied}
           selectedOpponent={selectedOpponent}
           setSelectedOpponent={setSelectedOpponent}
-          onBackToDashboard={() => setView(VIEWS.DASHBOARD)}
+          onBackToDashboard={handleBackToDashboardFromGame}
           onCreateRoom={createRoom}
           onJoinRoom={joinRoom}
           onLeaveRoom={leaveRoom}
@@ -345,29 +568,15 @@ export default function App() {
           setAvatarSeed={setAvatarSeed}
           roomCode={roomCode}
           setRoomCode={setRoomCode}
+          allies={allies}
+          gameFinished={gameFinished}
         />
-        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-500 text-xs bg-gray-900/80">
-          © Hecho por Pabels con amor ❤️
-        </footer>
-      </>
-    );
-  }
-  
-  // Encounter Result
-  if (view === VIEWS.ENCOUNTER_RESULT) {
-    return (
-      <>
-        <ConnectionStatus />
-        <EncounterResultView
-          encounter={lastEncounter}
-          currentPlayer={currentPlayer}
-          onContinue={handleContinueFromEncounter}
-          avatarStyle={avatarStyle}
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
         />
-        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-500 text-xs bg-gray-900/80">
-          © Hecho por Pabels con amor ❤️
-        </footer>
-      </>
+      </AppLayout>
     );
   }
   

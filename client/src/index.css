@@ -21,6 +21,29 @@
       radial-gradient(ellipse at bottom right, #312e81 0%, transparent 50%);
     background-attachment: fixed;
   }
+  
+  /* Evitar overflow horizontal */
+  html, body, #root {
+    @apply overflow-x-hidden max-w-full;
+  }
+  
+  /* Scrollbar estilizada */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-800/50;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
 }
 
 /* ============================================
@@ -61,6 +84,14 @@
            hover:from-amber-600 hover:to-orange-700 text-white font-semibold 
            rounded-xl transition-all duration-200 transform hover:scale-[1.02] 
            active:scale-[0.98] shadow-lg hover:shadow-amber-500/25;
+  }
+
+  /* Botón danger - gradiente rojo */
+  .btn-danger {
+    @apply w-full py-3 px-6 bg-gradient-to-r from-red-500 to-red-600 
+           hover:from-red-600 hover:to-red-700 text-white font-semibold 
+           rounded-xl transition-all duration-200 transform hover:scale-[1.02] 
+           active:scale-[0.98] shadow-lg hover:shadow-red-500/25;
   }
 
   /* Input field estándar */

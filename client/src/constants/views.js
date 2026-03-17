@@ -5,10 +5,14 @@ export const VIEWS = {
   RESET_PASSWORD: 'reset-password',  // Simplified: username + new password + confirm
   WAITING: 'waiting',  // Vista de cuenta atrás
   DASHBOARD: 'dashboard',
+  GAMES: 'games',
   GAME: 'game',
   GAME_LOBBY: 'game-lobby',
   HIDDEN: 'hidden',
-  ENCOUNTER_RESULT: 'encounter-result'
+  ENCOUNTER_RESULT: 'encounter-result',
+  STATS: 'stats',
+  ADMIN: 'admin',
+  GAME_WINNER: 'game-winner'
 };
 
 // URLs de API

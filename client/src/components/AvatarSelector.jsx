@@ -7,9 +7,9 @@ import { AVATAR_STYLES, getAvatarUrl } from '../constants/avatars.js';
  */
 export function AvatarSelector({ selectedStyle, onSelect }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <p className="text-sm text-gray-400">Estilo de avatar</p>
-      <div className="flex gap-2 overflow-x-auto pb-2">
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
         {AVATAR_STYLES.map(style => (
           <button
             key={style.id}
@@ -23,7 +23,7 @@ export function AvatarSelector({ selectedStyle, onSelect }) {
             <img
               src={getAvatarUrl(style.id, 'preview')}
               alt={style.name}
-              className="w-full h-full"
+              className="w-full h-full object-cover"
             />
           </button>
         ))}

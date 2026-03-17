@@ -193,11 +193,13 @@ export function setupSocketHandlers(io) {
         denied: false
       };
       
-      // Notificar al oponente
-      io.to(roomId).emit('encounter-proposed', {
+      // Notificar SOLO al oponente (no a todos)
+      io.to(opponentId).emit('encounter-proposed', {
         encounterId,
         proposerId: socket.id,
         proposerName: player1.name,
+        proposerAvatarStyle: player1.avatarStyle,
+        proposerAvatarSeed: player1.avatarSeed,
         targetId: opponentId,
         targetName: player2.name
       });
@@ -246,8 +248,13 @@ export function setupSocketHandlers(io) {
       
       let winner = null;
       let loser = null;
+      let isAlly = false;
       
-      if (result === 'player1') {
+      // Verificar si son aliados (mismo rol)
+      if (role1 === role2) {
+        isAlly = true;
+        // Ambos siguen jugando, no hay winner/loser
+      } else if (result === 'player1') {
         player2.eliminated = true;
         player2.isAlive = false;
         winner = player1;
@@ -259,17 +266,27 @@ export function setupSocketHandlers(io) {
         loser = player1;
       }
       
-      // Verificar si queda un solo jugador
+      // Verificar condición de victoria (equipo ganador)
       const alivePlayers = room.players.filter(p => p.isAlive);
-      if (alivePlayers.length <= 1) {
+      const uniqueRoles = new Set(
+        alivePlayers
+          .filter(p => room.roles[p.id])
+          .map(p => room.roles[p.id])
+      );
+      
+      let winningTeam = null;
+      if (uniqueRoles.size === 1 && alivePlayers.length > 0) {
         room.state = 'finished';
+        winningTeam = Array.from(uniqueRoles)[0];
+        room.winningTeam = winningTeam;
       }
       
       const encounterResult = {
         encounterId,
         player1: { id: player1.id, name: player1.name, role: role1 },
         player2: { id: player2.id, name: player2.name, role: role2 },
-        result,
+        result: isAlly ? 'tie' : result,
+        isAlly,
         winner: winner ? { id: winner.id, name: winner.name } : null,
         loser: loser ? { id: loser.id, name: loser.name } : null
       };
@@ -278,7 +295,21 @@ export function setupSocketHandlers(io) {
       delete room.pendingEncounters[encounterId];
       
       callback({ success: true, encounterResult });
-      io.to(roomId).emit('encounter-resolved', encounterResult);
+      
+      // Notificar SOLO a los participantes del encuentro
+      io.to(player1.id).emit('encounter-resolved', encounterResult);
+      io.to(player2.id).emit('encounter-resolved', encounterResult);
+      
+      // Si hay equipo ganador, emitir evento de fin de juego a todos
+      if (winningTeam) {
+        const winningPlayers = room.players.filter(p => room.roles[p.id] === winningTeam);
+        io.to(roomId).emit('game-finished', {
+          winningTeam,
+          winningPlayers: winningPlayers.map(p => ({ id: p.id, name: p.name }))
+        });
+      }
+      
+      // Actualizar room para todos (para ver estados de eliminado)
       io.to(roomId).emit('room-updated', room);
     });
     
@@ -308,18 +339,29 @@ export function setupSocketHandlers(io) {
       const player1 = room.players.find(p => p.id === encounter.player1Id);
       const player2 = room.players.find(p => p.id === encounter.player2Id);
       
+      console.log('=== DENY ENCOUNTER ===');
+      console.log('player1.id:', player1.id);
+      console.log('player2.id:', player2.id);
+      console.log('socket.id:', socket.id);
+      
       // Eliminar encuentro pendiente
       delete room.pendingEncounters[encounterId];
       
       callback({ success: true });
       
-      // Notificar a todos
-      io.to(roomId).emit('encounter-denied', {
+      // Notificar a AMBOS jugadores (proposer y target)
+      io.to(player1.id).emit('encounter-denied', {
+        encounterId,
+        deniedBy: player2.name,
+        deniedTo: player1.name
+      });
+      io.to(player2.id).emit('encounter-denied', {
         encounterId,
         deniedBy: player2.name,
         deniedTo: player1.name
       });
       
+      // Actualizar room para todos
       io.to(roomId).emit('room-updated', room);
     });
     
