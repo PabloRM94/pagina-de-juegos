@@ -15,6 +15,7 @@ export const ENDPOINTS = {
   COUNTERS: '/api/counters',
   COUNTER_BY_USER: (userId) => `/api/counters/${userId}`,
   COUNTER_HISTORY: '/api/counters/history',
+  COUNTER_TYPES: '/api/counter-types',
   
   // Turbo
   TURBO_STATE: '/api/turbo/state',

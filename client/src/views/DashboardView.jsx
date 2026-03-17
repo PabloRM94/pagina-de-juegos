@@ -13,6 +13,7 @@ const filterRealUsers = (users) => users.filter(u => u.id > 0);
  * @param {object} props.user - Usuario actual
  * @param {object} props.counters - Contadores
  * @param {object} props.users - Usuarios
+ * @param {array} props.counterTypes - Tipos de contadores disponibles
  * @param {function} props.onUpdateCounter - Callback para actualizar contador
  * @param {object} props.turboState - Estado del turbo
  * @param {function} props.onToggleTurbo - Callback para togglear turbo
@@ -24,6 +25,7 @@ export function DashboardView({
   user,
   counters,
   users,
+  counterTypes,
   onUpdateCounter,
   turboState,
   onToggleTurbo,
@@ -72,7 +74,36 @@ export function DashboardView({
     turbolatas: 0
   };
   
+  const customCounters = counters[targetUserId]?.custom_counters 
+    ? JSON.parse(counters[targetUserId].custom_counters) 
+    : {};
+  
   const targetUser = realUsers.find(u => u.id === turboState?.current_target_user_id);
+  
+  const getCounterValue = (counterType) => {
+    if (['cervezas', 'banos_piscina', 'agua_gas', 'turbolatas'].includes(counterType)) {
+      return myCounters[counterType] || 0;
+    }
+    return customCounters[counterType] || 0;
+  };
+  
+  const counterColors = [
+    'bg-amber-500/10',
+    'bg-cyan-500/10', 
+    'bg-blue-500/10',
+    'bg-red-500/10',
+    'bg-green-500/10',
+    'bg-purple-500/10',
+    'bg-yellow-500/10',
+    'bg-pink-500/10'
+  ];
+  
+  const displayCounterTypes = counterTypes || [
+    { slug: 'cervezas', name: 'Cervezas', icon: '🍺' },
+    { slug: 'banos_piscina', name: 'Baños Piscina', icon: '🚿' },
+    { slug: 'agua_gas', name: 'Agua con Gas', icon: '💧' },
+    { slug: 'turbolatas', name: 'Turbolatas', icon: '🥫' }
+  ];
   
   return (
     <div className="p-4 pb-24">
@@ -110,38 +141,17 @@ export function DashboardView({
         
         {/* Contadores */}
         <div className="grid grid-cols-2 gap-3">
-          <CounterCard
-            title="Cervezas"
-            icon="🍺"
-            value={myCounters.cervezas}
-            onInc={() => onUpdateCounter(targetUserId, 'cervezas', 'increment')}
-            onDec={() => onUpdateCounter(targetUserId, 'cervezas', 'decrement')}
-            color="bg-amber-500/10"
-          />
-          <CounterCard
-            title="Baños Piscina"
-            icon="🚿"
-            value={myCounters.banos_piscina}
-            onInc={() => onUpdateCounter(targetUserId, 'banos_piscina', 'increment')}
-            onDec={() => onUpdateCounter(targetUserId, 'banos_piscina', 'decrement')}
-            color="bg-cyan-500/10"
-          />
-          <CounterCard
-            title="Agua con Gas"
-            icon="💧"
-            value={myCounters.agua_gas}
-            onInc={() => onUpdateCounter(targetUserId, 'agua_gas', 'increment')}
-            onDec={() => onUpdateCounter(targetUserId, 'agua_gas', 'decrement')}
-            color="bg-blue-500/10"
-          />
-          <CounterCard
-            title="Turbolatas"
-            icon="🥫"
-            value={myCounters.turbolatas}
-            onInc={() => onUpdateCounter(targetUserId, 'turbolatas', 'increment')}
-            onDec={() => onUpdateCounter(targetUserId, 'turbolatas', 'decrement')}
-            color="bg-red-500/10"
-          />
+          {displayCounterTypes.map((counter, index) => (
+            <CounterCard
+              key={counter.slug}
+              title={counter.name}
+              icon={counter.icon}
+              value={getCounterValue(counter.slug)}
+              onInc={() => onUpdateCounter(targetUserId, counter.slug, 'increment')}
+              onDec={() => onUpdateCounter(targetUserId, counter.slug, 'decrement')}
+              color={counterColors[index % counterColors.length]}
+            />
+          ))}
         </div>
         
         {/* Turbo Lata */}
@@ -182,20 +192,9 @@ export function DashboardView({
             <div className="text-center">
               <div className="text-5xl mb-4">😴</div>
               <p className="text-gray-400 text-lg mb-2">Turbo Lata en reposo</p>
-              <p className="text-gray-500 text-sm mb-4">
+              <p className="text-gray-500 text-sm">
                 Cuando se active, alguien será elegido al azar para beber
               </p>
-              <div className="flex justify-center gap-2">
-                <div className="px-4 py-2 bg-white/5 rounded-lg">
-                  <span className="text-gray-400 text-sm">Tus turbolatas:</span>
-                  <span className="text-red-400 font-bold text-2xl ml-2">{myCounters.turbolatas}</span>
-                </div>
-              </div>
-              {user?.isAdmin && (
-                <button onClick={() => onToggleTurbo(true)} className="btn-primary mt-4">
-                  🚀 Activar Turbo Lata
-                </button>
-              )}
             </div>
           )}
         </Card>

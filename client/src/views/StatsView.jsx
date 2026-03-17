@@ -24,9 +24,36 @@ const filterRealUsers = (users) => users.filter(u => u.id > 0);
  * @param {object} props
  * @param {object} props.counters - Contadores de todos los usuarios
  * @param {object} props.users - Lista de usuarios
+ * @param {array} props.counterTypes - Tipos de contadores disponibles
  */
-export function StatsView({ counters, users }) {
+export function StatsView({ counters, users, counterTypes }) {
   const [chartFilter, setChartFilter] = useState({ counterType: '' });
+  
+  const defaultCounterTypes = [
+    { slug: 'cervezas', name: 'Cervezas', icon: '🍺' },
+    { slug: 'banos_piscina', name: 'Baños Piscina', icon: '🚿' },
+    { slug: 'agua_gas', name: 'Agua con Gas', icon: '💧' },
+    { slug: 'turbolatas', name: 'Turbolatas', icon: '🥫' }
+  ];
+  
+  const allCounterTypes = counterTypes || defaultCounterTypes;
+  
+  const getCustomCounters = (counter) => {
+    if (!counter || !counter.custom_counters) return {};
+    try {
+      return JSON.parse(counter.custom_counters);
+    } catch {
+      return {};
+    }
+  };
+  
+  const getCounterValue = (counter, slug) => {
+    const customCounters = getCustomCounters(counter);
+    if (['cervezas', 'banos_piscina', 'agua_gas', 'turbolatas'].includes(slug)) {
+      return counter?.[slug] || 0;
+    }
+    return customCounters[slug] || 0;
+  };
   
   // Filtrar usuarios reales (no invitados)
   const realUsers = filterRealUsers(users);
@@ -39,9 +66,10 @@ export function StatsView({ counters, users }) {
       data: realUsers.filter(u => counters[u.id]).map(u => {
         const c = counters[u.id];
         if (!c) return 0;
-        return chartFilter.counterType
-          ? c[chartFilter.counterType]
-          : c.cervezas + c.agua_gas + c.turbolatas + c.banos_piscina;
+        if (chartFilter.counterType) {
+          return getCounterValue(c, chartFilter.counterType);
+        }
+        return allCounterTypes.reduce((sum, ct) => sum + getCounterValue(c, ct.slug), 0);
       }),
       backgroundColor: [
         'rgba(59,130,246,0.8)', 'rgba(16,185,129,0.8)', 'rgba(245,158,11,0.8)',
@@ -72,19 +100,16 @@ export function StatsView({ counters, users }) {
 
   // Calcular totales
   const calculateTotals = () => {
-    const totals = {
-      cervezas: 0,
-      banos_piscina: 0,
-      agua_gas: 0,
-      turbolatas: 0
-    };
+    const totals = {};
+    allCounterTypes.forEach(c => {
+      totals[c.slug] = 0;
+    });
     
     Object.values(counters).forEach(c => {
       if (c) {
-        totals.cervezas += c.cervezas || 0;
-        totals.banos_piscina += c.banos_piscina || 0;
-        totals.agua_gas += c.agua_gas || 0;
-        totals.turbolatas += c.turbolatas || 0;
+        allCounterTypes.forEach(counterType => {
+          totals[counterType.slug] += getCounterValue(c, counterType.slug);
+        });
       }
     });
     
@@ -92,7 +117,7 @@ export function StatsView({ counters, users }) {
   };
 
   const totals = calculateTotals();
-  const totalGeneral = totals.cervezas + totals.banos_piscina + totals.agua_gas + totals.turbolatas;
+  const totalGeneral = Object.values(totals).reduce((a, b) => a + b, 0);
 
   // Encontrar líderes
   const getLeader = (counterType) => {
@@ -103,18 +128,35 @@ export function StatsView({ counters, users }) {
     
     realUsers.forEach(u => {
       const c = counters[u.id];
-      if (c && c[counterType] > maxValue) {
-        maxValue = c[counterType];
-        leader = { name: u.name, value: c[counterType] };
+      if (c) {
+        const value = getCounterValue(c, counterType);
+        if (value > maxValue) {
+          maxValue = value;
+          leader = { name: u.name, value };
+        }
       }
     });
     
     return leader;
   };
 
-  const leaderCervezas = getLeader('cervezas');
-  const leaderTurbolatas = getLeader('turbolatas');
-  const leaderAgua = getLeader('agua_gas');
+  // Obtener líderes de todos los contadores
+  const leaders = allCounterTypes
+    .map(counterType => ({
+      ...counterType,
+      leader: getLeader(counterType.slug)
+    }))
+    .filter(c => c.leader && c.leader.value > 0);
+
+  // Colores para contadores
+  const counterColors = {
+    cervezas: 'text-amber-400',
+    banos_piscina: 'text-cyan-400',
+    agua_gas: 'text-blue-400',
+    turbolatas: 'text-red-400'
+  };
+
+  const getCounterColor = (slug) => counterColors[slug] || 'text-green-400';
 
   return (
     <div className="min-h-screen p-4 pb-24">
@@ -128,23 +170,13 @@ export function StatsView({ counters, users }) {
         {/* Totales generales */}
         <Card className="bg-gradient-to-br from-indigo-600/20 to-purple-600/20 border-indigo-500/30">
           <h3 className="text-xl font-bold text-white mb-4 text-center">📈 Totales</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-white/5 rounded-xl">
-              <p className="text-3xl font-bold text-amber-400">{totals.cervezas}</p>
-              <p className="text-gray-400 text-sm">🍺 Cervezas</p>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-xl">
-              <p className="text-3xl font-bold text-cyan-400">{totals.banos_piscina}</p>
-              <p className="text-gray-400 text-sm">🚿 Baños</p>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-xl">
-              <p className="text-3xl font-bold text-blue-400">{totals.agua_gas}</p>
-              <p className="text-gray-400 text-sm">💧 Agua Gas</p>
-            </div>
-            <div className="text-center p-3 bg-white/5 rounded-xl">
-              <p className="text-3xl font-bold text-red-400">{totals.turbolatas}</p>
-              <p className="text-gray-400 text-sm">🥫 Turbolatas</p>
-            </div>
+          <div className={`grid gap-4 ${allCounterTypes.length <= 4 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'}`}>
+            {allCounterTypes.map(counter => (
+              <div key={counter.slug} className="text-center p-3 bg-white/5 rounded-xl">
+                <p className={`text-3xl font-bold ${getCounterColor(counter.slug)}`}>{totals[counter.slug] || 0}</p>
+                <p className="text-gray-400 text-sm">{counter.icon} {counter.name}</p>
+              </div>
+            ))}
           </div>
           <div className="text-center mt-4 p-3 bg-white/10 rounded-xl">
             <p className="text-2xl font-bold text-white">{totalGeneral}</p>
@@ -156,32 +188,17 @@ export function StatsView({ counters, users }) {
         <Card>
           <h3 className="text-xl font-bold text-white mb-4">🏆 Líderes</h3>
           <div className="space-y-3">
-            {leaderCervezas && (
-              <div className="flex items-center justify-between p-3 bg-amber-500/10 rounded-xl">
+            {leaders.map(item => (
+              <div key={item.slug} className={`flex items-center justify-between p-3 rounded-xl ${getCounterColor(item.slug).replace('text-', 'bg-').replace('400', '500/10')}`}>
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">🍺</span>
-                  <span className="text-white">Más cervezas</span>
+                  <span className="text-2xl">{item.icon}</span>
+                  <span className="text-white">Más {item.name.toLowerCase()}</span>
                 </div>
-                <span className="text-xl font-bold text-amber-400">{leaderCervezas.name} ({leaderCervezas.value})</span>
+                <span className={`text-xl font-bold ${getCounterColor(item.slug)}`}>{item.leader.name} ({item.leader.value})</span>
               </div>
-            )}
-            {leaderTurbolatas && (
-              <div className="flex items-center justify-between p-3 bg-red-500/10 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">🥫</span>
-                  <span className="text-white">Más turbolatas</span>
-                </div>
-                <span className="text-xl font-bold text-red-400">{leaderTurbolatas.name} ({leaderTurbolatas.value})</span>
-              </div>
-            )}
-            {leaderAgua && (
-              <div className="flex items-center justify-between p-3 bg-blue-500/10 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">💧</span>
-                  <span className="text-white">Más agua con gas</span>
-                </div>
-                <span className="text-xl font-bold text-blue-400">{leaderAgua.name} ({leaderAgua.value})</span>
-              </div>
+            ))}
+            {leaders.length === 0 && (
+              <p className="text-gray-400 text-center py-4">No hay datos suficientes para mostrar líderes</p>
             )}
           </div>
         </Card>
@@ -196,10 +213,9 @@ export function StatsView({ counters, users }) {
               onChange={e => setChartFilter(f => ({ ...f, counterType: e.target.value }))}
             >
               <option value="">Total</option>
-              <option value="cervezas">Cervezas</option>
-              <option value="agua_gas">Agua con Gas</option>
-              <option value="turbolatas">Turbolatas</option>
-              <option value="banos_piscina">Baños Piscina</option>
+              {allCounterTypes.map(c => (
+                <option key={c.slug} value={c.slug}>{c.icon} {c.name}</option>
+              ))}
             </select>
           </div>
           <div className="h-64">
@@ -215,24 +231,24 @@ export function StatsView({ counters, users }) {
               <thead>
                 <tr className="text-gray-400 border-b border-gray-700">
                   <th className="text-left py-2">Usuario</th>
-                  <th className="text-right py-2">🍺</th>
-                  <th className="text-right py-2">🚿</th>
-                  <th className="text-right py-2">💧</th>
-                  <th className="text-right py-2">🥫</th>
+                  {allCounterTypes.map(c => (
+                    <th key={c.slug} className="text-right py-2">{c.icon}</th>
+                  ))}
                   <th className="text-right py-2">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {realUsers.filter(u => counters[u.id]).map(u => {
                   const c = counters[u.id] || {};
-                  const total = (c.cervezas || 0) + (c.banos_piscina || 0) + (c.agua_gas || 0) + (c.turbolatas || 0);
+                  const total = allCounterTypes.reduce((sum, ct) => sum + getCounterValue(c, ct.slug), 0);
                   return (
                     <tr key={u.id} className="text-white border-b border-gray-800">
                       <td className="py-2">{u.name}</td>
-                      <td className="text-right text-amber-400">{c.cervezas || 0}</td>
-                      <td className="text-right text-cyan-400">{c.banos_piscina || 0}</td>
-                      <td className="text-right text-blue-400">{c.agua_gas || 0}</td>
-                      <td className="text-right text-red-400">{c.turbolatas || 0}</td>
+                      {allCounterTypes.map(counterType => (
+                        <td key={counterType.slug} className="text-right">
+                          {getCounterValue(c, counterType.slug)}
+                        </td>
+                      ))}
                       <td className="text-right font-bold">{total}</td>
                     </tr>
                   );

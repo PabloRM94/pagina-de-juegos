@@ -35,6 +35,9 @@ export default function App() {
   // === Turbo State ===
   const [turboState, setTurboState] = useState(null);
   
+  // === Counter Types ===
+  const [counterTypes, setCounterTypes] = useState([]);
+  
   // === View State ===
   const [view, setView] = useState(VIEWS.LOGIN);
   
@@ -84,13 +87,15 @@ export default function App() {
     
     const loadInitialData = async () => {
       try {
-        const [configRes, turboRes] = await Promise.all([
+        const [configRes, turboRes, counterTypesRes] = await Promise.all([
           api.get(ENDPOINTS.TRIP_CONFIG),
-          api.get(ENDPOINTS.TURBO_STATE)
+          api.get(ENDPOINTS.TURBO_STATE),
+          api.get(ENDPOINTS.COUNTER_TYPES)
         ]);
         
         if (configRes.success) setTripConfig(configRes.config);
         if (turboRes.success) setTurboState(turboRes.turboState);
+        if (counterTypesRes.success) setCounterTypes(counterTypesRes.counterTypes);
       } catch (err) {
         console.error('Error loading initial data:', err);
       }
@@ -265,6 +270,24 @@ export default function App() {
     setTripConfig(config);
   };
   
+  const handleCreateCounterType = async (name, icon) => {
+    const result = await api.post(ENDPOINTS.COUNTER_TYPES, { name, icon });
+    if (result.success) {
+      const typesRes = await api.get(ENDPOINTS.COUNTER_TYPES);
+      if (typesRes.success) setCounterTypes(typesRes.counterTypes);
+    }
+    return result;
+  };
+  
+  const handleDeleteCounterType = async (id) => {
+    const result = await api.delete(`${ENDPOINTS.COUNTER_TYPES}/${id}`);
+    if (result.success) {
+      const typesRes = await api.get(ENDPOINTS.COUNTER_TYPES);
+      if (typesRes.success) setCounterTypes(typesRes.counterTypes);
+    }
+    return result;
+  };
+  
   const handleContinueFromEncounter = () => {
     setLastEncounter(null);
     if (gameFinished) {
@@ -418,6 +441,7 @@ export default function App() {
           user={user}
           counters={counters}
           users={users}
+          counterTypes={counterTypes}
           onUpdateCounter={handleUpdateCounter}
           turboState={turboState}
           onToggleTurbo={handleToggleTurbo}
@@ -469,6 +493,7 @@ export default function App() {
         <StatsView
           counters={counters}
           users={users}
+          counterTypes={counterTypes}
         />
         <LogoutModal 
           isOpen={showLogoutModal}
@@ -492,6 +517,7 @@ export default function App() {
         <AdminView
           user={user}
           users={users}
+          counterTypes={counterTypes}
           tripConfig={tripConfig}
           turboState={turboState}
           onConfigUpdate={handleConfigUpdate}
@@ -499,6 +525,8 @@ export default function App() {
           onTriggerTurbo={handleTriggerTurbo}
           onCancelTurbo={handleCancelTurbo}
           onConfigTurbo={handleConfigTurbo}
+          onCreateCounterType={handleCreateCounterType}
+          onDeleteCounterType={handleDeleteCounterType}
           onNavigateToWaiting={() => setView(VIEWS.WAITING)}
         />
         <LogoutModal 

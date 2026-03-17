@@ -8,18 +8,23 @@ import Card from './Card.jsx';
  * @param {function} onInc - Callback al incrementar
  * @param {function} onDec - Callback al decrementar
  * @param {string} color - Clase de color de fondo
+ * @param {boolean} readOnly - Si es solo lectura (sin botones)
  */
-export function CounterCard({ title, icon, value, onInc, onDec, color }) {
+export function CounterCard({ title, icon, value, onInc, onDec, color, readOnly }) {
   return (
     <Card className={color}>
       <div className="text-center">
         <div className="text-4xl mb-2">{icon}</div>
         <p className="text-gray-400 text-sm">{title}</p>
         <p className="text-5xl font-bold text-white my-4">{value}</p>
-        <div className="flex gap-2 justify-center">
-          <button onClick={onDec} className="btn-secondary px-4">-</button>
-          <button onClick={onInc} className="btn-primary px-4">+</button>
-        </div>
+        {readOnly ? (
+          <p className="text-gray-500 text-xs">Solo admin puede modificar</p>
+        ) : (
+          <div className="flex gap-2 justify-center">
+            <button onClick={onDec} className="btn-secondary px-4">-</button>
+            <button onClick={onInc} className="btn-primary px-4">+</button>
+          </div>
+        )}
       </div>
     </Card>
   );

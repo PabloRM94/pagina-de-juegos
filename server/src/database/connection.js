@@ -5,7 +5,7 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dbPath = join(__dirname, '..', 'trip.db');
+const dbPath = join(__dirname, 'trip.db');
 const db = new Database(dbPath);
 
 /**
@@ -44,8 +44,18 @@ export function initDatabase() {
       banos_piscina INTEGER DEFAULT 0,
       agua_gas INTEGER DEFAULT 0,
       turbolatas INTEGER DEFAULT 0,
+      custom_counters TEXT DEFAULT '{}',
       FOREIGN KEY (user_id) REFERENCES users(id),
       UNIQUE(user_id, date)
+    );
+    
+    -- Tipos de contadores personalizados (definidos por admin)
+    CREATE TABLE IF NOT EXISTS counter_types (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      slug TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Historial de contadores para gráficos

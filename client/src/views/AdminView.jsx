@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card } from '../components/index.js';
 import { api, ENDPOINTS } from '../api/index.js';
 
@@ -7,6 +8,7 @@ import { api, ENDPOINTS } from '../api/index.js';
  * @param {object} props
  * @param {object} props.user - Usuario actual
  * @param {object} props.users - Lista de usuarios
+ * @param {array} props.counterTypes - Tipos de contadores disponibles
  * @param {object} props.tripConfig - Configuración del viaje
  * @param {object} props.turboState - Estado del turbo
  * @param {function} props.onConfigUpdate - Callback para actualizar config
@@ -14,11 +16,14 @@ import { api, ENDPOINTS } from '../api/index.js';
  * @param {function} props.onTriggerTurbo - Callback para activar turbo
  * @param {function} props.onCancelTurbo - Callback para cancelar turbo
  * @param {function} props.onConfigTurbo - Callback para configurar turbo
+ * @param {function} props.onCreateCounterType - Callback para crear tipo de contador
+ * @param {function} props.onDeleteCounterType - Callback para eliminar tipo de contador
  * @param {function} props.onNavigateToWaiting - Callback para ir a cuenta atrás
  */
 export function AdminView({
   user,
   users,
+  counterTypes,
   tripConfig,
   turboState,
   onConfigUpdate,
@@ -26,8 +31,13 @@ export function AdminView({
   onTriggerTurbo,
   onCancelTurbo,
   onConfigTurbo,
+  onCreateCounterType,
+  onDeleteCounterType,
   onNavigateToWaiting
 }) {
+  const [newCounterName, setNewCounterName] = useState('');
+  const [newCounterIcon, setNewCounterIcon] = useState('🔢');
+  const [showAddCounter, setShowAddCounter] = useState(false);
   // Solo admins pueden ver esta vista
   if (!user?.isAdmin) {
     return (
@@ -174,6 +184,85 @@ export function AdminView({
               >
                 ⏰ Ver Cuenta Atrás
               </button>
+            )}
+          </div>
+        </Card>
+        
+        {/* Gestión de Contadores */}
+        <Card className="bg-gradient-to-br from-green-600/20 to-emerald-600/20 border-green-500/30">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-bold text-white">📊 Contadores</h3>
+            <button
+              onClick={() => setShowAddCounter(!showAddCounter)}
+              className="text-green-400 font-bold text-2xl w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              {showAddCounter ? '✕' : '+'}
+            </button>
+          </div>
+          
+          {showAddCounter && (
+            <div className="mb-4 p-3 bg-white/5 rounded-xl space-y-3">
+              <input
+                type="text"
+                placeholder="Nombre del contador"
+                className="input-field w-full"
+                value={newCounterName}
+                onChange={(e) => setNewCounterName(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <select
+                  className="input-field flex-1"
+                  value={newCounterIcon}
+                  onChange={(e) => setNewCounterIcon(e.target.value)}
+                >
+                  <option value="🔢">🔢 Números</option>
+                  <option value="🍕">🍕 Pizza</option>
+                  <option value="☕">☕ Café</option>
+                  <option value="🍷">🍷 Vino</option>
+                  <option value="🥤">🥤 Trago</option>
+                  <option value="🍔">🍔 Hamburguesa</option>
+                  <option value="🎮">🎮 Videojuego</option>
+                  <option value="⚽">⚽ Fútbol</option>
+                  <option value="🏊">🏊 Natación</option>
+                  <option value="🚬">🚬 Cigarrillo</option>
+                  <option value="💊">💊 Pastilla</option>
+                </select>
+                <button
+                  onClick={async () => {
+                    if (newCounterName.trim()) {
+                      await onCreateCounterType(newCounterName, newCounterIcon);
+                      setNewCounterName('');
+                      setNewCounterIcon('🔢');
+                      setShowAddCounter(false);
+                    }
+                  }}
+                  className="btn-primary"
+                >
+                  Añadir
+                </button>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-2">
+            {counterTypes?.filter(c => !c.is_fixed).map(counter => (
+              <div key={counter.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{counter.icon}</span>
+                  <span className="text-white">{counter.name}</span>
+                </div>
+                <button
+                  onClick={() => onDeleteCounterType(counter.id)}
+                  className="text-red-400 hover:text-red-300 text-2xl p-2 cursor-pointer"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+            {(!counterTypes || counterTypes.filter(c => !c.is_fixed).length === 0) && (
+              <p className="text-gray-400 text-sm text-center py-2">
+                No hay contadores personalizados
+              </p>
             )}
           </div>
         </Card>

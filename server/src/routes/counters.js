@@ -5,6 +5,100 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 
 /**
+ * GET /api/counter-types
+ * Obtiene todos los tipos de contadores (fijos + personalizados)
+ */
+router.get('/counter-types', authenticateToken, (req, res) => {
+  try {
+    const fixedCounters = [
+      { id: 'cervezas', name: 'Cervezas', icon: '🍺', slug: 'cervezas', is_fixed: true },
+      { id: 'banos_piscina', name: 'Baños Piscina', icon: '🚿', slug: 'banos_piscina', is_fixed: true },
+      { id: 'agua_gas', name: 'Agua con Gas', icon: '💧', slug: 'agua_gas', is_fixed: true },
+      { id: 'turbolatas', name: 'Turbolatas', icon: '🥫', slug: 'turbolatas', is_fixed: true }
+    ];
+    
+    const customCounters = db.prepare('SELECT * FROM counter_types ORDER BY name').all();
+    
+    const allTypes = [...fixedCounters, ...customCounters.map(c => ({ ...c, is_fixed: false }))];
+    
+    res.json({ success: true, counterTypes: allTypes });
+  } catch (error) {
+    console.error('Error obteniendo tipos de contadores:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * POST /api/counter-types
+ * Crea un nuevo tipo de contador (solo admin)
+ */
+router.post('/counter-types', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede crear contadores' });
+    }
+    
+    const { name, icon } = req.body;
+    
+    if (!name || !icon) {
+      return res.status(400).json({ success: false, error: 'Nombre e icono son requeridos' });
+    }
+    
+    const slug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    
+    const existing = db.prepare('SELECT id FROM counter_types WHERE slug = ?').get(slug);
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Ya existe un contador con ese nombre' });
+    }
+    
+    const result = db.prepare('INSERT INTO counter_types (name, icon, slug) VALUES (?, ?, ?)').run(name, icon, slug);
+    
+    if (req.app.get('io')) {
+      req.app.get('io').emit('counter-types-updated');
+    }
+    
+    res.json({ success: true, id: result.lastInsertRowid, name, icon, slug });
+  } catch (error) {
+    console.error('Error creando tipo de contador:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * DELETE /api/counter-types/:id
+ * Elimina un tipo de contador personalizado (solo admin)
+ */
+router.delete('/counter-types/:id', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede eliminar contadores' });
+    }
+    
+    const id = parseInt(req.params.id, 10);
+    
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    
+    const counter = db.prepare('SELECT * FROM counter_types WHERE id = ?').get(id);
+    if (!counter) {
+      return res.status(404).json({ success: false, error: 'Contador no encontrado' });
+    }
+    
+    db.prepare('DELETE FROM counter_types WHERE id = ?').run(id);
+    
+    if (req.app.get('io')) {
+      req.app.get('io').emit('counter-types-updated');
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error eliminando tipo de contador:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
  * GET /api/counters/:userId
  * Obtiene los contadores de un usuario específico
  */
@@ -61,6 +155,9 @@ router.post('/counters/:userId', authenticateToken, (req, res) => {
     const { counterType, action } = req.body;
     const today = new Date().toISOString().split('T')[0];
     
+    const fixedCounters = ['cervezas', 'banos_piscina', 'agua_gas', 'turbolatas'];
+    const isFixed = fixedCounters.includes(counterType);
+    
     let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
     
     if (!counter) {
@@ -68,10 +165,20 @@ router.post('/counters/:userId', authenticateToken, (req, res) => {
       counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
     }
     
-    const oldValue = counter[counterType];
-    const newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
+    let newValue;
+    let oldValue;
     
-    db.prepare(`UPDATE counters SET ${counterType} = ? WHERE user_id = ? AND date = ?`).run(newValue, userId, today);
+    if (isFixed) {
+      oldValue = counter[counterType] || 0;
+      newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
+      db.prepare(`UPDATE counters SET ${counterType} = ? WHERE user_id = ? AND date = ?`).run(newValue, userId, today);
+    } else {
+      const customCounters = JSON.parse(counter.custom_counters || '{}');
+      oldValue = customCounters[counterType] || 0;
+      newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
+      customCounters[counterType] = newValue;
+      db.prepare(`UPDATE counters SET custom_counters = ? WHERE user_id = ? AND date = ?`).run(JSON.stringify(customCounters), userId, today);
+    }
     
     db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(userId, counterType, oldValue, newValue);
     
