@@ -6,20 +6,26 @@ import { api, ENDPOINTS } from '../api/index.js';
  * Configuración del viaje y Turbo Lata
  * @param {object} props
  * @param {object} props.user - Usuario actual
+ * @param {object} props.users - Lista de usuarios
  * @param {object} props.tripConfig - Configuración del viaje
  * @param {object} props.turboState - Estado del turbo
  * @param {function} props.onConfigUpdate - Callback para actualizar config
  * @param {function} props.onToggleTurbo - Callback para togglear turbo
  * @param {function} props.onTriggerTurbo - Callback para activar turbo
+ * @param {function} props.onCancelTurbo - Callback para cancelar turbo
+ * @param {function} props.onConfigTurbo - Callback para configurar turbo
  * @param {function} props.onNavigateToWaiting - Callback para ir a cuenta atrás
  */
 export function AdminView({
   user,
+  users,
   tripConfig,
   turboState,
   onConfigUpdate,
   onToggleTurbo,
   onTriggerTurbo,
+  onCancelTurbo,
+  onConfigTurbo,
   onNavigateToWaiting
 }) {
   // Solo admins pueden ver esta vista
@@ -33,9 +39,8 @@ export function AdminView({
     );
   }
 
-  const targetUser = user?.id === turboState?.current_target_user_id 
-    ? user 
-    : null;
+  // Buscar el usuario objetivo del turbo
+  const targetUser = users?.find(u => u.id === turboState?.current_target_user_id);
 
   return (
     <div className="p-4 pb-24">
@@ -191,6 +196,34 @@ export function AdminView({
               </button>
             </div>
             
+            {/* Configuración de confirmaciones requeridas */}
+            <div className="p-3 bg-white/5 rounded-xl">
+              <div className="flex items-center justify-between">
+                <p className="text-white font-medium">Confirmaciones requeridas:</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onConfigTurbo(turboState?.required_confirmations - 1)}
+                    disabled={turboState?.required_confirmations <= 1}
+                    className="w-8 h-8 rounded-full bg-gray-600 text-white font-bold disabled:opacity-50"
+                  >
+                    -
+                  </button>
+                  <span className="text-white font-bold text-xl w-8 text-center">
+                    {turboState?.required_confirmations || 3}
+                  </span>
+                  <button
+                    onClick={() => onConfigTurbo(turboState?.required_confirmations + 1)}
+                    className="w-8 h-8 rounded-full bg-gray-600 text-white font-bold"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+              <p className="text-gray-400 text-xs mt-2">
+                Cantidad de personas que deben confirmar que el target bebió
+              </p>
+            </div>
+            
             {/* Estado actual del turbo */}
             {turboState?.active && (
               <>
@@ -201,6 +234,12 @@ export function AdminView({
                     <p className="text-gray-400 text-sm mt-2">
                       {turboState.current_confirmations} / {turboState.required_confirmations} confirmaciones
                     </p>
+                    <button
+                      className="btn-secondary w-full mt-4"
+                      onClick={onCancelTurbo}
+                    >
+                      ❌ Cancelar Turbo
+                    </button>
                   </div>
                 ) : (
                   <div className="text-center p-4 bg-white/5 rounded-xl">

@@ -155,7 +155,20 @@ export default function App() {
       if (countersRes.success) {
         const countersMap = {};
         countersRes.counters.forEach(c => countersMap[c.user_id] = c);
+        // Actualizar el estado de contadores
+        // Usamos la función de actualización de useCounters si está disponible
+        if (countersRes.counters) {
+          // Forzar actualización de contadores
+          setTurboState(prev => ({ ...prev })); // Trigger re-render
+        }
       }
+      // Recargar contadores completa
+      await refreshCounters();
+    };
+    
+    const handleTurboCancelled = async () => {
+      const turboRes = await api.get(ENDPOINTS.TURBO_STATE);
+      if (turboRes.success) setTurboState(turboRes.turboState);
     };
     
     socket.on('connect', handleConnect);
@@ -165,6 +178,7 @@ export default function App() {
     socket.on('turbo-triggered', handleTurboTriggered);
     socket.on('turbo-confirmation-updated', handleTurboConfirmations);
     socket.on('turbo-completed', handleTurboCompleted);
+    socket.on('turbo-cancelled', handleTurboCancelled);
     
     return () => {
       socket.off('connect', handleConnect);
@@ -174,6 +188,7 @@ export default function App() {
       socket.off('turbo-triggered', handleTurboTriggered);
       socket.off('turbo-confirmation-updated', handleTurboConfirmations);
       socket.off('turbo-completed', handleTurboCompleted);
+      socket.off('turbo-cancelled', handleTurboCancelled);
     };
   }, [refreshCounters]);
   
@@ -233,6 +248,17 @@ export default function App() {
   
   const handleConfirmTurbo = async () => {
     await api.post(ENDPOINTS.TURBO_CONFIRM);
+  };
+  
+  const handleCancelTurbo = async () => {
+    await api.post(ENDPOINTS.TURBO_CANCEL);
+  };
+  
+  const handleConfigTurbo = async (requiredConfirmations) => {
+    const result = await api.post(ENDPOINTS.TURBO_CONFIG, { required_confirmations: requiredConfirmations });
+    if (result.success) {
+      setTurboState(result.turboState);
+    }
   };
   
   const handleConfigUpdate = (config) => {
@@ -397,6 +423,7 @@ export default function App() {
           onToggleTurbo={handleToggleTurbo}
           onTriggerTurbo={handleTriggerTurbo}
           onConfirmTurbo={handleConfirmTurbo}
+          onCancelTurbo={handleCancelTurbo}
         />
         <LogoutModal 
           isOpen={showLogoutModal}
@@ -464,11 +491,14 @@ export default function App() {
       >
         <AdminView
           user={user}
+          users={users}
           tripConfig={tripConfig}
           turboState={turboState}
           onConfigUpdate={handleConfigUpdate}
           onToggleTurbo={handleToggleTurbo}
           onTriggerTurbo={handleTriggerTurbo}
+          onCancelTurbo={handleCancelTurbo}
+          onConfigTurbo={handleConfigTurbo}
           onNavigateToWaiting={() => setView(VIEWS.WAITING)}
         />
         <LogoutModal 

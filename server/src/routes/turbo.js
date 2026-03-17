@@ -86,6 +86,72 @@ router.post('/turbo/trigger', authenticateToken, (req, res) => {
 });
 
 /**
+ * POST /api/turbo/cancel
+ * Cancela el turbo actual (resetea target y confirmaciones)
+ */
+router.post('/turbo/cancel', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede cancelar el Turbo Lata' });
+    }
+    
+    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    
+    if (!turboState.active || !turboState.current_target_user_id) {
+      return res.status(400).json({ success: false, error: 'No hay Turbo Lata activo para cancelar' });
+    }
+    
+    // Resetear target y confirmaciones
+    db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
+    db.prepare('DELETE FROM turbo_confirmations').run();
+    
+    const newTurboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    
+    if (req.app.get('io')) {
+      req.app.get('io').emit('turbo-cancelled');
+    }
+    
+    res.json({ success: true, turboState: newTurboState });
+  } catch (error) {
+    console.error('Error cancelando turbo:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * POST /api/turbo/config
+ * Configura las opciones del turbo (ej: required_confirmations)
+ */
+router.post('/turbo/config', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede configurar el Turbo Lata' });
+    }
+    
+    const { required_confirmations } = req.body;
+    
+    if (required_confirmations !== undefined) {
+      const value = parseInt(required_confirmations, 10);
+      if (isNaN(value) || value < 1) {
+        return res.status(400).json({ success: false, error: 'El número de confirmaciones debe ser al menos 1' });
+      }
+      db.prepare('UPDATE turbo_state SET required_confirmations = ? WHERE id = 1').run(value);
+    }
+    
+    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    
+    if (req.app.get('io')) {
+      req.app.get('io').emit('turbo-state-changed', { active: turboState.active, required_confirmations: turboState.required_confirmations });
+    }
+    
+    res.json({ success: true, turboState });
+  } catch (error) {
+    console.error('Error configurando turbo:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
  * POST /api/turbo/confirm
  * Confirma que el usuario objetivo bebió
  */

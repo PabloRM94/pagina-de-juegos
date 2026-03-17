@@ -21,6 +21,8 @@ export const ENDPOINTS = {
   TURBO_TOGGLE: '/api/turbo/toggle',
   TURBO_TRIGGER: '/api/turbo/trigger',
   TURBO_CONFIRM: '/api/turbo/confirm',
+  TURBO_CANCEL: '/api/turbo/cancel',
+  TURBO_CONFIG: '/api/turbo/config',
 };
 
 export default ENDPOINTS;

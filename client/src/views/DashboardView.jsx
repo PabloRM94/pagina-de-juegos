@@ -18,6 +18,7 @@ const filterRealUsers = (users) => users.filter(u => u.id > 0);
  * @param {function} props.onToggleTurbo - Callback para togglear turbo
  * @param {function} props.onTriggerTurbo - Callback para activar turbo
  * @param {function} props.onConfirmTurbo - Callback para confirmar turbo
+ * @param {function} props.onCancelTurbo - Callback para cancelar turbo
  */
 export function DashboardView({
   user,
@@ -27,7 +28,8 @@ export function DashboardView({
   turboState,
   onToggleTurbo,
   onTriggerTurbo,
-  onConfirmTurbo
+  onConfirmTurbo,
+  onCancelTurbo
 }) {
   const [selectedUserId, setSelectedUserId] = useState(null);
   
@@ -156,6 +158,11 @@ export function DashboardView({
                 {user?.id !== turboState.current_target_user_id && (
                   <button onClick={onConfirmTurbo} className="btn-primary">
                     Confirmar que lo bebió
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={onCancelTurbo} className="btn-secondary mt-2 w-full">
+                    ❌ Cancelar Turbo
                   </button>
                 )}
               </div>
