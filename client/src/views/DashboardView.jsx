@@ -168,20 +168,32 @@ export function DashboardView({
               </div>
             ) : (
               <div className="text-center">
-                <p className="text-gray-400 mb-4">Esperando a que el admin active...</p>
+                <div className="text-4xl mb-3 animate-pulse">🎲</div>
+                <p className="text-yellow-400 text-lg mb-2">¡Elegiendo víctima!</p>
+                <p className="text-gray-400 text-sm">Alguien será elegido en cualquier momento...</p>
                 {user?.isAdmin && (
-                  <button onClick={onTriggerTurbo} className="btn-warning">
-                    Activar Turbo Ahora
+                  <button onClick={onTriggerTurbo} className="btn-warning mt-4">
+                    🎯 Forzar Selección
                   </button>
                 )}
               </div>
             )
           ) : (
             <div className="text-center">
-              <p className="text-gray-400 mb-4">Turbo Lata desactivado</p>
+              <div className="text-5xl mb-4">😴</div>
+              <p className="text-gray-400 text-lg mb-2">Turbo Lata en reposo</p>
+              <p className="text-gray-500 text-sm mb-4">
+                Cuando se active, alguien será elegido al azar para beber
+              </p>
+              <div className="flex justify-center gap-2">
+                <div className="px-4 py-2 bg-white/5 rounded-lg">
+                  <span className="text-gray-400 text-sm">Tus turbolatas:</span>
+                  <span className="text-red-400 font-bold text-2xl ml-2">{myCounters.turbolatas}</span>
+                </div>
+              </div>
               {user?.isAdmin && (
-                <button onClick={() => onToggleTurbo(true)} className="btn-primary">
-                  Activar Turbo Lata
+                <button onClick={() => onToggleTurbo(true)} className="btn-primary mt-4">
+                  🚀 Activar Turbo Lata
                 </button>
               )}
             </div>

@@ -4,6 +4,65 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
 
+let autoTriggerTimeout = null;
+
+function scheduleAutoTrigger(io) {
+  if (autoTriggerTimeout) {
+    clearTimeout(autoTriggerTimeout);
+  }
+  
+  const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+  
+  if (!turboState.active) return;
+  
+  if (turboState.current_target_user_id) {
+    return;
+  }
+  
+  const minMs = 30000;
+  const maxMs = 120000;
+  const randomMs = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+  
+  console.log(`[TURBO] Programando auto-disparo en ${randomMs/1000} segundos`);
+  
+  autoTriggerTimeout = setTimeout(() => {
+    triggerAutoTurbo(io);
+  }, randomMs);
+}
+
+function triggerAutoTurbo(io) {
+  const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+  
+  if (!turboState.active || turboState.current_target_user_id) {
+    return;
+  }
+  
+  const users = db.prepare('SELECT id, name FROM users WHERE is_admin = 0').all();
+  
+  if (users.length === 0) return;
+  
+  const randomUser = users[Math.floor(Math.random() * users.length)];
+  
+  db.prepare(`UPDATE turbo_state SET current_target_user_id = ?, current_confirmations = 0, last_triggered = CURRENT_TIMESTAMP WHERE id = 1`).run(randomUser.id);
+  
+  db.prepare('DELETE FROM turbo_confirmations').run();
+  
+  const newTurboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+  
+  if (io) {
+    io.emit('turbo-triggered', { 
+      targetUserId: randomUser.id, 
+      targetUserName: randomUser.name, 
+      requiredConfirmations: newTurboState.required_confirmations, 
+      currentConfirmations: 0 
+    });
+    
+    scheduleAutoTrigger(io);
+  }
+  
+  console.log(`[TURBO] Auto-disparo elegido: ${randomUser.name}`);
+}
+
 /**
  * GET /api/turbo/state
  * Obtiene el estado del turbo
@@ -30,15 +89,37 @@ router.post('/turbo/toggle', authenticateToken, (req, res) => {
       return res.status(403).json({ success: false, error: 'Solo el admin puede activar el Turbo Lata' });
     }
     
-    db.prepare('UPDATE turbo_state SET active = ? WHERE id = 1').run(active ? 1 : 0);
-    
-    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
-    
-    if (req.app.get('io')) {
-      req.app.get('io').emit('turbo-state-changed', { active });
+    if (active) {
+      db.prepare('UPDATE turbo_state SET active = 1 WHERE id = 1').run();
+      const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+      
+      if (req.app.get('io')) {
+        req.app.get('io').emit('turbo-state-changed', { active: true });
+        
+        if (!turboState.current_target_user_id) {
+          scheduleAutoTrigger(req.app.get('io'));
+        }
+      }
+      
+      res.json({ success: true, turboState });
+    } else {
+      if (autoTriggerTimeout) {
+        clearTimeout(autoTriggerTimeout);
+        autoTriggerTimeout = null;
+      }
+      
+      db.prepare('UPDATE turbo_state SET active = 0 WHERE id = 1').run();
+      db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
+      db.prepare('DELETE FROM turbo_confirmations').run();
+      
+      const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+      
+      if (req.app.get('io')) {
+        req.app.get('io').emit('turbo-state-changed', { active: false });
+      }
+      
+      res.json({ success: true, turboState });
     }
-    
-    res.json({ success: true, turboState });
   } catch (error) {
     console.error('Error toggle turbo:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });
@@ -200,6 +281,8 @@ router.post('/turbo/confirm', authenticateToken, (req, res) => {
       
       if (req.app.get('io')) {
         req.app.get('io').emit('turbo-completed', { targetUserId: turboState.current_target_user_id, turbolatasCount: newValue });
+        
+        scheduleAutoTrigger(req.app.get('io'));
       }
     }
     
