@@ -7,6 +7,14 @@ const __dirname = dirname(__filename);
 
 const db = new Database(join(__dirname, 'trip.db'));
 
+// Agregar columnas para reset password si no existen
+try {
+  db.exec('ALTER TABLE users ADD COLUMN reset_token TEXT');
+} catch(e) { /* puede que ya exista */ }
+try {
+  db.exec('ALTER TABLE users ADD COLUMN reset_token_expires DATETIME');
+} catch(e) { /* puede que ya exista */ }
+
 // Crear tablas
 db.exec(`
   -- Tabla de usuarios
