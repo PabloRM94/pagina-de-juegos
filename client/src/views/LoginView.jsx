@@ -39,6 +39,7 @@ export function LoginView({
           </div>
           <h1 className="text-4xl font-bold gradient-text mb-2">Casa rural Domingo de Braguitas</h1>
           <p className="text-gray-400">Iniciá sesión</p>
+          <p className="text-gray-600 text-xs mt-1">v1.0.0</p>
         </div>
         
         <Card>

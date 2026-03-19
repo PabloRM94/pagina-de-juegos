@@ -9,3 +9,10 @@ export { EncounterResultView } from './EncounterResultView.jsx';
 export { ResetPasswordView } from './ResetPasswordView.jsx';
 export { StatsView } from './StatsView.jsx';
 export { GameWinnerView } from './GameWinnerView.jsx';
+// Time's Up views
+export { TimesUpLobbyView } from './TimesUpLobbyView.jsx';
+export { TimesUpTeamNameView } from './TimesUpTeamNameView.jsx';
+export { TimesUpWordInputView } from './TimesUpWordInputView.jsx';
+export { TimesUpPlayView } from './TimesUpPlayView.jsx';
+export { TimesUpRoundResultView } from './TimesUpRoundResultView.jsx';
+export { TimesUpFinalResultView } from './TimesUpFinalResultView.jsx';

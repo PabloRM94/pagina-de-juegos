@@ -26,3 +26,4 @@ npm-debug.log*
 
 # Database
 server/trip.db
+server/src/database/trip.db

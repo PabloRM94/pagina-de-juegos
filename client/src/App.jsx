@@ -17,7 +17,13 @@ import {
   EncounterResultView,
   ResetPasswordView,
   StatsView,
-  GameWinnerView
+  GameWinnerView,
+  TimesUpLobbyView,
+  TimesUpTeamNameView,
+  TimesUpWordInputView,
+  TimesUpPlayView,
+  TimesUpRoundResultView,
+  TimesUpFinalResultView
 } from './views/index.js';
 
 import { AppLayout, ConnectionStatus, LogoutModal } from './components/index.js';
@@ -469,7 +475,7 @@ export default function App() {
         onLogoutClick={() => setShowLogoutModal(true)}
       >
         <GamesView
-          onNavigate={handleNavigateToGame}
+          onNavigate={handleTabNavigate}
         />
         <LogoutModal 
           isOpen={showLogoutModal}
@@ -635,6 +641,96 @@ export default function App() {
           onCancel={() => setShowLogoutModal(false)}
         />
       </AppLayout>
+    );
+  }
+  
+  // Time's Up - Lobby
+  if (view === VIEWS.TIMESUP_LOBBY) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesUpLobbyView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+  
+  // Time's Up - Team Names
+  if (view === VIEWS.TIMESUP_TEAM_NAME) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesUpTeamNameView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+  
+  // Time's Up - Word Input
+  if (view === VIEWS.TIMESUP_WORD_INPUT) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesUpWordInputView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+  
+  // Time's Up - Play
+  if (view === VIEWS.TIMESUP_PLAY) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesUpPlayView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+  
+  // Time's Up - Round Result
+  if (view === VIEWS.TIMESUP_ROUND_RESULT) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesUpRoundResultView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+  
+  // Time's Up - Final Result
+  if (view === VIEWS.TIMESUP_FINAL_RESULT) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesUpFinalResultView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
     );
   }
   

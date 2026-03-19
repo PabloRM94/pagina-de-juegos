@@ -11,6 +11,13 @@ const GAMES = [
     icon: '🎭',
     description: 'Encuentra a tus amigos y ganá',
     view: VIEWS.GAME
+  },
+  {
+    id: 'timesup',
+    name: "Time's Up",
+    icon: '⏱️',
+    description: 'Adivina palabras en equipo',
+    view: VIEWS.TIMESUP_LOBBY
   }
 ];
 

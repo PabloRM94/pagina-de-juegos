@@ -12,7 +12,14 @@ export const VIEWS = {
   ENCOUNTER_RESULT: 'encounter-result',
   STATS: 'stats',
   ADMIN: 'admin',
-  GAME_WINNER: 'game-winner'
+  GAME_WINNER: 'game-winner',
+  // Time's Up views
+  TIMESUP_LOBBY: 'timesup-lobby',
+  TIMESUP_TEAM_NAME: 'timesup-team-name',
+  TIMESUP_WORD_INPUT: 'timesup-word-input',
+  TIMESUP_PLAY: 'timesup-play',
+  TIMESUP_ROUND_RESULT: 'timesup-round-result',
+  TIMESUP_FINAL_RESULT: 'timesup-final-result'
 };
 
 // URLs de API
