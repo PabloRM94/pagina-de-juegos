@@ -8,9 +8,9 @@ const router = express.Router();
  * GET /trip/config
  * Obtiene la configuración del viaje
  */
-router.get('/trip/config', (req, res) => {
+router.get('/trip/config', async (req, res) => {
   try {
-    const config = db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
+    const config = await db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
     res.json({ success: true, config });
   } catch (error) {
     console.error('Error obteniendo config:', error);
@@ -22,7 +22,7 @@ router.get('/trip/config', (req, res) => {
  * POST /trip/config
  * Actualiza la configuración del viaje (solo admin)
  */
-router.post('/trip/config', authenticateToken, (req, res) => {
+router.post('/trip/config', authenticateToken, async (req, res) => {
   try {
     console.log('=== TRIP CONFIG UPDATE ===');
     console.log('User from token:', req.user);
@@ -52,13 +52,13 @@ router.post('/trip/config', authenticateToken, (req, res) => {
     
     if (updates.length > 0) {
       params.push(1); // id = 1
-      db.prepare(`UPDATE trip_config SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+      await db.prepare(`UPDATE trip_config SET ${updates.join(', ')} WHERE id = ?`).run(...params);
       console.log('DB updated successfully');
     } else {
       console.log('No updates to make');
     }
     
-    const config = db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
+    const config = await db.prepare('SELECT * FROM trip_config WHERE id = 1').get();
     console.log('Config after update:', config);
     
     // Notificar a todos los clientes (se hace desde el servidor principal)

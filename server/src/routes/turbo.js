@@ -6,12 +6,12 @@ const router = express.Router();
 
 let autoTriggerTimeout = null;
 
-function scheduleAutoTrigger(io) {
+async function scheduleAutoTrigger(io) {
   if (autoTriggerTimeout) {
     clearTimeout(autoTriggerTimeout);
   }
   
-  const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+  const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
   
   if (!turboState.active) return;
   
@@ -30,24 +30,24 @@ function scheduleAutoTrigger(io) {
   }, randomMs);
 }
 
-function triggerAutoTurbo(io) {
-  const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+async function triggerAutoTurbo(io) {
+  const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
   
   if (!turboState.active || turboState.current_target_user_id) {
     return;
   }
   
-  const users = db.prepare('SELECT id, name FROM users WHERE is_admin = 0').all();
+  const users = await db.prepare('SELECT id, name FROM users WHERE is_admin = 0').all();
   
   if (users.length === 0) return;
   
   const randomUser = users[Math.floor(Math.random() * users.length)];
   
-  db.prepare(`UPDATE turbo_state SET current_target_user_id = ?, current_confirmations = 0, last_triggered = CURRENT_TIMESTAMP WHERE id = 1`).run(randomUser.id);
+  await db.prepare(`UPDATE turbo_state SET current_target_user_id = ?, current_confirmations = 0, last_triggered = CURRENT_TIMESTAMP WHERE id = 1`).run(randomUser.id);
   
-  db.prepare('DELETE FROM turbo_confirmations').run();
+  await db.prepare('DELETE FROM turbo_confirmations').run();
   
-  const newTurboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+  const newTurboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
   
   if (io) {
     io.emit('turbo-triggered', { 
@@ -67,9 +67,9 @@ function triggerAutoTurbo(io) {
  * GET /api/turbo/state
  * Obtiene el estado del turbo
  */
-router.get('/turbo/state', authenticateToken, (req, res) => {
+router.get('/turbo/state', authenticateToken, async (req, res) => {
   try {
-    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
     res.json({ success: true, turboState });
   } catch (error) {
     console.error('Error obteniendo estado turbo:', error);
@@ -81,7 +81,7 @@ router.get('/turbo/state', authenticateToken, (req, res) => {
  * POST /api/turbo/toggle
  * Activa/desactiva el turbo
  */
-router.post('/turbo/toggle', authenticateToken, (req, res) => {
+router.post('/turbo/toggle', authenticateToken, async (req, res) => {
   try {
     const { active } = req.body;
     
@@ -90,8 +90,8 @@ router.post('/turbo/toggle', authenticateToken, (req, res) => {
     }
     
     if (active) {
-      db.prepare('UPDATE turbo_state SET active = 1 WHERE id = 1').run();
-      const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+      await db.prepare('UPDATE turbo_state SET active = 1 WHERE id = 1').run();
+      const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
       
       if (req.app.get('io')) {
         req.app.get('io').emit('turbo-state-changed', { active: true });
@@ -108,11 +108,11 @@ router.post('/turbo/toggle', authenticateToken, (req, res) => {
         autoTriggerTimeout = null;
       }
       
-      db.prepare('UPDATE turbo_state SET active = 0 WHERE id = 1').run();
-      db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
-      db.prepare('DELETE FROM turbo_confirmations').run();
+      await db.prepare('UPDATE turbo_state SET active = 0 WHERE id = 1').run();
+      await db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
+      await db.prepare('DELETE FROM turbo_confirmations').run();
       
-      const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+      const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
       
       if (req.app.get('io')) {
         req.app.get('io').emit('turbo-state-changed', { active: false });
@@ -130,13 +130,13 @@ router.post('/turbo/toggle', authenticateToken, (req, res) => {
  * POST /api/turbo/trigger
  * Activa un nuevo turbo (elige random user)
  */
-router.post('/turbo/trigger', authenticateToken, (req, res) => {
+router.post('/turbo/trigger', authenticateToken, async (req, res) => {
   try {
     if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, error: 'Solo el admin puede ejecutar Turbo Lata' });
     }
     
-    const users = db.prepare('SELECT id, name FROM users WHERE is_admin = 0').all();
+    const users = await db.prepare('SELECT id, name FROM users WHERE is_admin = 0').all();
     
     if (users.length === 0) {
       return res.status(400).json({ success: false, error: 'No hay usuarios disponibles' });
@@ -144,11 +144,11 @@ router.post('/turbo/trigger', authenticateToken, (req, res) => {
     
     const randomUser = users[Math.floor(Math.random() * users.length)];
     
-    db.prepare(`UPDATE turbo_state SET current_target_user_id = ?, current_confirmations = 0, last_triggered = CURRENT_TIMESTAMP WHERE id = 1`).run(randomUser.id);
+    await db.prepare(`UPDATE turbo_state SET current_target_user_id = ?, current_confirmations = 0, last_triggered = CURRENT_TIMESTAMP WHERE id = 1`).run(randomUser.id);
     
-    db.prepare('DELETE FROM turbo_confirmations').run();
+    await db.prepare('DELETE FROM turbo_confirmations').run();
     
-    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
     
     if (req.app.get('io')) {
       req.app.get('io').emit('turbo-triggered', { 
@@ -170,23 +170,23 @@ router.post('/turbo/trigger', authenticateToken, (req, res) => {
  * POST /api/turbo/cancel
  * Cancela el turbo actual (resetea target y confirmaciones)
  */
-router.post('/turbo/cancel', authenticateToken, (req, res) => {
+router.post('/turbo/cancel', authenticateToken, async (req, res) => {
   try {
     if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, error: 'Solo el admin puede cancelar el Turbo Lata' });
     }
     
-    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
     
     if (!turboState.active || !turboState.current_target_user_id) {
       return res.status(400).json({ success: false, error: 'No hay Turbo Lata activo para cancelar' });
     }
     
     // Resetear target y confirmaciones
-    db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
-    db.prepare('DELETE FROM turbo_confirmations').run();
+    await db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
+    await db.prepare('DELETE FROM turbo_confirmations').run();
     
-    const newTurboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    const newTurboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
     
     if (req.app.get('io')) {
       req.app.get('io').emit('turbo-cancelled');
@@ -203,7 +203,7 @@ router.post('/turbo/cancel', authenticateToken, (req, res) => {
  * POST /api/turbo/config
  * Configura las opciones del turbo (ej: required_confirmations)
  */
-router.post('/turbo/config', authenticateToken, (req, res) => {
+router.post('/turbo/config', authenticateToken, async (req, res) => {
   try {
     if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, error: 'Solo el admin puede configurar el Turbo Lata' });
@@ -216,10 +216,10 @@ router.post('/turbo/config', authenticateToken, (req, res) => {
       if (isNaN(value) || value < 1) {
         return res.status(400).json({ success: false, error: 'El número de confirmaciones debe ser al menos 1' });
       }
-      db.prepare('UPDATE turbo_state SET required_confirmations = ? WHERE id = 1').run(value);
+      await db.prepare('UPDATE turbo_state SET required_confirmations = ? WHERE id = 1').run(value);
     }
     
-    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
     
     if (req.app.get('io')) {
       req.app.get('io').emit('turbo-state-changed', { active: turboState.active, required_confirmations: turboState.required_confirmations });
@@ -236,48 +236,48 @@ router.post('/turbo/config', authenticateToken, (req, res) => {
  * POST /api/turbo/confirm
  * Confirma que el usuario objetivo bebió
  */
-router.post('/turbo/confirm', authenticateToken, (req, res) => {
+router.post('/turbo/confirm', authenticateToken, async (req, res) => {
   try {
-    const turboState = db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
+    const turboState = await db.prepare('SELECT * FROM turbo_state WHERE id = 1').get();
     
     if (!turboState.active || !turboState.current_target_user_id) {
       return res.status(400).json({ success: false, error: 'No hay Turbo Lata activo' });
     }
     
-    const existing = db.prepare(`SELECT id FROM turbo_confirmations WHERE target_user_id = ? AND confirmed_by_user_id = ?`).get(turboState.current_target_user_id, req.user.id);
+    const existing = await db.prepare(`SELECT id FROM turbo_confirmations WHERE target_user_id = ? AND confirmed_by_user_id = ?`).get(turboState.current_target_user_id, req.user.id);
     
     if (existing) {
       return res.status(400).json({ success: false, error: 'Ya has confirmado' });
     }
     
-    db.prepare(`INSERT INTO turbo_confirmations (target_user_id, confirmed_by_user_id) VALUES (?, ?)`).run(turboState.current_target_user_id, req.user.id);
+    await db.prepare(`INSERT INTO turbo_confirmations (target_user_id, confirmed_by_user_id) VALUES (?, ?)`).run(turboState.current_target_user_id, req.user.id);
     
-    const confirmations = db.prepare(`SELECT COUNT(*) as count FROM turbo_confirmations WHERE target_user_id = ?`).get(turboState.current_target_user_id);
+    const confirmations = await db.prepare(`SELECT COUNT(*) as count FROM turbo_confirmations WHERE target_user_id = ?`).get(turboState.current_target_user_id);
     
     const newCount = confirmations.count;
     const required = turboState.required_confirmations;
     
-    db.prepare('UPDATE turbo_state SET current_confirmations = ? WHERE id = 1').run(newCount);
+    await db.prepare('UPDATE turbo_state SET current_confirmations = ? WHERE id = 1').run(newCount);
     
     if (newCount >= required) {
       const today = new Date().toISOString().split('T')[0];
       
-      let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(turboState.current_target_user_id, today);
+      let counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(turboState.current_target_user_id, today);
       
       if (!counter) {
-        db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(turboState.current_target_user_id, today);
-        counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(turboState.current_target_user_id, today);
+        await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(turboState.current_target_user_id, today);
+        counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(turboState.current_target_user_id, today);
       }
       
       const oldValue = counter.turbolatas;
       const newValue = oldValue + 1;
       
-      db.prepare('UPDATE counters SET turbolatas = ? WHERE user_id = ? AND date = ?').run(newValue, turboState.current_target_user_id, today);
+      await db.prepare('UPDATE counters SET turbolatas = ? WHERE user_id = ? AND date = ?').run(newValue, turboState.current_target_user_id, today);
       
-      db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(turboState.current_target_user_id, 'turbolatas', oldValue, newValue);
+      await db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(turboState.current_target_user_id, 'turbolatas', oldValue, newValue);
       
-      db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
-      db.prepare('DELETE FROM turbo_confirmations').run();
+      await db.prepare('UPDATE turbo_state SET current_target_user_id = NULL, current_confirmations = 0 WHERE id = 1').run();
+      await db.prepare('DELETE FROM turbo_confirmations').run();
       
       if (req.app.get('io')) {
         req.app.get('io').emit('turbo-completed', { targetUserId: turboState.current_target_user_id, turbolatasCount: newValue });

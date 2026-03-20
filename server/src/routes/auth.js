@@ -18,7 +18,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Nombre y contraseña requeridos' });
     }
     
-    const existingUser = db.prepare('SELECT id FROM users WHERE name = ?').get(name);
+    const existingUser = await db.prepare('SELECT id FROM users WHERE name = ?').get(name);
     if (existingUser) {
       return res.status(400).json({ success: false, error: 'El usuario ya existe' });
     }
@@ -26,10 +26,10 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const isAdmin = name === 'Domingoadmin' ? 1 : 0;
     
-    const result = db.prepare('INSERT INTO users (name, password, is_admin) VALUES (?, ?, ?)').run(name, hashedPassword, isAdmin);
+    const result = await db.prepare('INSERT INTO users (name, password, is_admin) VALUES (?, ?, ?)').run(name, hashedPassword, isAdmin);
     
     const today = new Date().toISOString().split('T')[0];
-    db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(result.lastInsertRowid, today);
+    await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(result.lastInsertRowid, today);
     
     const token = generateToken({ id: result.lastInsertRowid, name, isAdmin });
     
@@ -52,7 +52,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Nombre y contraseña requeridos' });
     }
     
-    const user = db.prepare('SELECT * FROM users WHERE name = ?').get(name);
+    const user = await db.prepare('SELECT * FROM users WHERE name = ?').get(name);
     if (!user) {
       return res.status(401).json({ success: false, error: 'Usuario o contraseña incorrectos' });
     }
@@ -91,7 +91,7 @@ router.post('/reset-password-direct', async (req, res) => {
     }
     
     // Buscar usuario
-    const user = db.prepare('SELECT id FROM users WHERE name = ?').get(username);
+    const user = await db.prepare('SELECT id FROM users WHERE name = ?').get(username);
     
     if (!user) {
       return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
@@ -101,7 +101,7 @@ router.post('/reset-password-direct', async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     
     // Actualizar contraseña
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, user.id);
+    await db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, user.id);
     
     res.json({ success: true, message: 'Contraseña actualizada correctamente' });
   } catch (error) {
@@ -134,12 +134,12 @@ router.put('/users/:id/name', authenticateToken, async (req, res) => {
     }
     
     // Verificar que el nombre no exista ya (excluyendo el usuario actual)
-    const existingUser = db.prepare('SELECT id FROM users WHERE name = ? AND id != ?').get(name, id);
+    const existingUser = await db.prepare('SELECT id FROM users WHERE name = ? AND id != ?').get(name, id);
     if (existingUser) {
       return res.status(400).json({ success: false, error: 'El nombre ya está en uso' });
     }
     
-    db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name.trim(), id);
+    await db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name.trim(), id);
     
     res.json({ success: true, name: name.trim() });
   } catch (error) {

@@ -8,7 +8,7 @@ const router = express.Router();
  * GET /api/counter-types
  * Obtiene todos los tipos de contadores (fijos + personalizados)
  */
-router.get('/counter-types', authenticateToken, (req, res) => {
+router.get('/counter-types', authenticateToken, async (req, res) => {
   try {
     const fixedCounters = [
       { id: 'cervezas', name: 'Cervezas', icon: '🍺', slug: 'cervezas', is_fixed: true },
@@ -17,7 +17,7 @@ router.get('/counter-types', authenticateToken, (req, res) => {
       { id: 'turbolatas', name: 'Turbolatas', icon: '🥫', slug: 'turbolatas', is_fixed: true }
     ];
     
-    const customCounters = db.prepare('SELECT * FROM counter_types ORDER BY name').all();
+    const customCounters = await db.prepare('SELECT * FROM counter_types ORDER BY name').all();
     
     const allTypes = [...fixedCounters, ...customCounters.map(c => ({ ...c, is_fixed: false }))];
     
@@ -32,7 +32,7 @@ router.get('/counter-types', authenticateToken, (req, res) => {
  * POST /api/counter-types
  * Crea un nuevo tipo de contador (solo admin)
  */
-router.post('/counter-types', authenticateToken, (req, res) => {
+router.post('/counter-types', authenticateToken, async (req, res) => {
   try {
     if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, error: 'Solo el admin puede crear contadores' });
@@ -46,12 +46,12 @@ router.post('/counter-types', authenticateToken, (req, res) => {
     
     const slug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     
-    const existing = db.prepare('SELECT id FROM counter_types WHERE slug = ?').get(slug);
+    const existing = await db.prepare('SELECT id FROM counter_types WHERE slug = ?').get(slug);
     if (existing) {
       return res.status(400).json({ success: false, error: 'Ya existe un contador con ese nombre' });
     }
     
-    const result = db.prepare('INSERT INTO counter_types (name, icon, slug) VALUES (?, ?, ?)').run(name, icon, slug);
+    const result = await db.prepare('INSERT INTO counter_types (name, icon, slug) VALUES (?, ?, ?)').run(name, icon, slug);
     
     if (req.app.get('io')) {
       req.app.get('io').emit('counter-types-updated');
@@ -68,7 +68,7 @@ router.post('/counter-types', authenticateToken, (req, res) => {
  * DELETE /api/counter-types/:id
  * Elimina un tipo de contador personalizado (solo admin)
  */
-router.delete('/counter-types/:id', authenticateToken, (req, res) => {
+router.delete('/counter-types/:id', authenticateToken, async (req, res) => {
   try {
     if (!req.user.isAdmin) {
       return res.status(403).json({ success: false, error: 'Solo el admin puede eliminar contadores' });
@@ -80,12 +80,12 @@ router.delete('/counter-types/:id', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, error: 'ID inválido' });
     }
     
-    const counter = db.prepare('SELECT * FROM counter_types WHERE id = ?').get(id);
+    const counter = await db.prepare('SELECT * FROM counter_types WHERE id = ?').get(id);
     if (!counter) {
       return res.status(404).json({ success: false, error: 'Contador no encontrado' });
     }
     
-    db.prepare('DELETE FROM counter_types WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM counter_types WHERE id = ?').run(id);
     
     if (req.app.get('io')) {
       req.app.get('io').emit('counter-types-updated');
@@ -102,17 +102,17 @@ router.delete('/counter-types/:id', authenticateToken, (req, res) => {
  * GET /api/counters/:userId
  * Obtiene los contadores de un usuario específico
  */
-router.get('/counters/:userId', authenticateToken, (req, res) => {
+router.get('/counters/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
     
-    let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
+    let counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
     
     if (!counter) {
-      db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, targetDate);
-      counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
+      await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, targetDate);
+      counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
     }
     
     res.json({ success: true, counter });
@@ -126,12 +126,12 @@ router.get('/counters/:userId', authenticateToken, (req, res) => {
  * GET /api/counters
  * Obtiene todos los contadores del día (sin admins)
  */
-router.get('/counters', authenticateToken, (req, res) => {
+router.get('/counters', authenticateToken, async (req, res) => {
   try {
     const { date } = req.query;
     const targetDate = date || new Date().toISOString().split('T')[0];
     
-    const counters = db.prepare(`
+    const counters = await db.prepare(`
       SELECT c.*, u.name as user_name 
       FROM counters c 
       JOIN users u ON c.user_id = u.id 
@@ -149,7 +149,7 @@ router.get('/counters', authenticateToken, (req, res) => {
  * POST /api/counters/:userId
  * Actualiza un contador
  */
-router.post('/counters/:userId', authenticateToken, (req, res) => {
+router.post('/counters/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
     const { counterType, action } = req.body;
@@ -158,11 +158,11 @@ router.post('/counters/:userId', authenticateToken, (req, res) => {
     const fixedCounters = ['cervezas', 'banos_piscina', 'agua_gas', 'turbolatas'];
     const isFixed = fixedCounters.includes(counterType);
     
-    let counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
+    let counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
     
     if (!counter) {
-      db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, today);
-      counter = db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
+      await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, today);
+      counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
     }
     
     let newValue;
@@ -171,16 +171,16 @@ router.post('/counters/:userId', authenticateToken, (req, res) => {
     if (isFixed) {
       oldValue = counter[counterType] || 0;
       newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
-      db.prepare(`UPDATE counters SET ${counterType} = ? WHERE user_id = ? AND date = ?`).run(newValue, userId, today);
+      await db.prepare(`UPDATE counters SET ${counterType} = ? WHERE user_id = ? AND date = ?`).run(newValue, userId, today);
     } else {
       const customCounters = JSON.parse(counter.custom_counters || '{}');
       oldValue = customCounters[counterType] || 0;
       newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
       customCounters[counterType] = newValue;
-      db.prepare(`UPDATE counters SET custom_counters = ? WHERE user_id = ? AND date = ?`).run(JSON.stringify(customCounters), userId, today);
+      await db.prepare(`UPDATE counters SET custom_counters = ? WHERE user_id = ? AND date = ?`).run(JSON.stringify(customCounters), userId, today);
     }
     
-    db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(userId, counterType, oldValue, newValue);
+    await db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(userId, counterType, oldValue, newValue);
     
     // Notificar a todos los clientes
     if (req.app.get('io')) {
@@ -198,7 +198,7 @@ router.post('/counters/:userId', authenticateToken, (req, res) => {
  * GET /api/counters/history
  * Obtiene el historial de contadores
  */
-router.get('/counters/history', authenticateToken, (req, res) => {
+router.get('/counters/history', authenticateToken, async (req, res) => {
   try {
     const { startDate, endDate, counterType } = req.query;
     
@@ -211,7 +211,7 @@ router.get('/counters/history', authenticateToken, (req, res) => {
     
     query += ' ORDER BY ch.timestamp DESC';
     
-    const history = db.prepare(query).all(...params);
+    const history = await db.prepare(query).all(...params);
     res.json({ success: true, history });
   } catch (error) {
     console.error('Error obteniendo historial:', error);
@@ -223,9 +223,9 @@ router.get('/counters/history', authenticateToken, (req, res) => {
  * GET /api/users
  * Obtiene todos los usuarios (sin admins)
  */
-router.get('/users', authenticateToken, (req, res) => {
+router.get('/users', authenticateToken, async (req, res) => {
   try {
-    const users = db.prepare('SELECT id, name, is_admin FROM users WHERE is_admin = 0').all();
+    const users = await db.prepare('SELECT id, name, is_admin FROM users WHERE is_admin = 0').all();
     res.json({ success: true, users });
   } catch (error) {
     console.error('Error obteniendo usuarios:', error);
@@ -239,9 +239,9 @@ router.get('/users', authenticateToken, (req, res) => {
  * GET /api/checklist
  * Obtiene todos los items de la checklist
  */
-router.get('/checklist', authenticateToken, (req, res) => {
+router.get('/checklist', authenticateToken, async (req, res) => {
   try {
-    const items = db.prepare(`
+    const items = await db.prepare(`
       SELECT cl.*, u.name as created_by_name
       FROM checklist_items cl
       JOIN users u ON cl.created_by = u.id
@@ -258,7 +258,7 @@ router.get('/checklist', authenticateToken, (req, res) => {
  * POST /api/checklist
  * Crea un nuevo item en la checklist (opcionalmente en una sección)
  */
-router.post('/checklist', authenticateToken, (req, res) => {
+router.post('/checklist', authenticateToken, async (req, res) => {
   try {
     const { text, section } = req.body;
     const userId = req.user.id;
@@ -279,12 +279,12 @@ router.post('/checklist', authenticateToken, (req, res) => {
     const sectionName = (section || '').trim();
     console.log('sectionName a guardar:', sectionName);
     
-    const result = db.prepare(
+    const result = await db.prepare(
       'INSERT INTO checklist_items (text, section, created_by) VALUES (?, ?, ?)'
     ).run(text.trim(), sectionName, userId);
     
     // Obtener el item creado con el nombre
-    const newItem = db.prepare(`
+    const newItem = await db.prepare(`
       SELECT cl.*, u.name as created_by_name
       FROM checklist_items cl
       JOIN users u ON cl.created_by = u.id
@@ -307,12 +307,12 @@ router.post('/checklist', authenticateToken, (req, res) => {
  * PUT /api/checklist/:id/toggle
  * Toggle completado de un item
  */
-router.put('/checklist/:id/toggle', authenticateToken, (req, res) => {
+router.put('/checklist/:id/toggle', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
     
-    const item = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
+    const item = await db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
     if (!item) {
       return res.status(404).json({ success: false, error: 'Item no encontrado' });
     }
@@ -320,7 +320,7 @@ router.put('/checklist/:id/toggle', authenticateToken, (req, res) => {
     const newCompleted = item.completed ? 0 : 1;
     const newCompletedBy = newCompleted ? userId : null;
     
-    db.prepare(
+    await db.prepare(
       'UPDATE checklist_items SET completed = ?, completed_by = ? WHERE id = ?'
     ).run(newCompleted, newCompletedBy, id);
     
@@ -340,16 +340,16 @@ router.put('/checklist/:id/toggle', authenticateToken, (req, res) => {
  * DELETE /api/checklist/:id
  * Elimina un item de la checklist
  */
-router.delete('/checklist/:id', authenticateToken, (req, res) => {
+router.delete('/checklist/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     
-    const item = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
+    const item = await db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
     if (!item) {
       return res.status(404).json({ success: false, error: 'Item no encontrado' });
     }
     
-    db.prepare('DELETE FROM checklist_items WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM checklist_items WHERE id = ?').run(id);
     
     // Notificar a todos los clientes
     if (req.app.get('io')) {
