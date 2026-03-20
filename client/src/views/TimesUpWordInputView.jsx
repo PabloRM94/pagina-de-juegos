@@ -125,7 +125,7 @@ export function TimesUpWordInputView({ onNavigate }) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
+    <div className="min-h-screen p-4">
       <div className="max-w-md mx-auto space-y-6">
         {/* Header */}
         <div className="text-center pt-4">

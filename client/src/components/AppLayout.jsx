@@ -23,7 +23,7 @@ export function AppLayout({
   onLogoutClick
 }) {
   return (
-    <div className="min-h-screen bg-gray-950 overflow-x-hidden">
+    <div className="min-h-screen overflow-x-hidden">
       {/* ConnectionStatus siempre visible */}
       <ConnectionStatus />
       

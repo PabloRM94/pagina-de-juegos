@@ -481,7 +481,7 @@ export function TimesUpPlayView({ onNavigate }) {
   const roundTime = Math.floor((roundConfig[currentRound]?.timePerTurn || 60000) / 1000);
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4">
+    <div className="min-h-screen p-4">
       <div className="max-w-md mx-auto space-y-4">
         {/* Header */}
         <div className="text-center pt-2">
