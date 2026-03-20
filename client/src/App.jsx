@@ -116,10 +116,15 @@ export default function App() {
       try {
         const configRes = await api.get(ENDPOINTS.TRIP_CONFIG);
         if (configRes.success) {
-          setTripConfig(prev => ({ ...prev, ...configRes.config }));
+          setTripConfig(configRes.config);
+        } else {
+          // Fallback: enable guest mode by default if config fails
+          setTripConfig({ guest_mode: 1, trip_started: true, admin_only: 0 });
         }
       } catch (err) {
         console.error('Error loading trip config:', err);
+        // Fallback: enable guest mode by default if API fails
+        setTripConfig({ guest_mode: 1, trip_started: true, admin_only: 0 });
       }
     };
     
