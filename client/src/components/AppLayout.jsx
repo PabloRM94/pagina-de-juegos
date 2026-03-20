@@ -44,7 +44,10 @@ export function AppLayout({
       )}
       
       {/* Footer fijo */}
-      <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800 z-30">
+      <footer 
+        className="fixed bottom-0 left-0 right-0 py-3 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800 z-30"
+        style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+      >
         © Hecho por Pabels con amor ❤️
       </footer>
     </div>

@@ -2,9 +2,9 @@
 
 @theme {
   /* Colores del juego - consistencia con diseño */
-  --color-game-bg: #0f0f1a;
-  --color-game-card: #1a1a2e;
-  --color-game-accent: #6366f1;
+  --color-game-bg: #1a1510;
+  --color-game-card: #2d2015;
+  --color-game-accent: #f59e0b;
   --color-game-success: #10b981;
   --color-game-danger: #ef4444;
   --color-game-warning: #f59e0b;
@@ -24,8 +24,8 @@
   body {
     @apply bg-game-bg text-gray-100 min-h-screen;
     background-image: 
-      radial-gradient(ellipse at top, #1e1b4b 0%, transparent 50%),
-      radial-gradient(ellipse at bottom right, #312e81 0%, transparent 50%);
+      radial-gradient(ellipse at top, #2d2015 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, #1a1510 0%, transparent 50%);
     background-attachment: fixed;
   }
   
@@ -59,16 +59,16 @@
 @layer components {
   /* Tarjeta con efecto glassmorphism */
   .glass-card {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl;
+    @apply bg-white/5 backdrop-blur-xl border border-amber-500/10 rounded-2xl;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   }
 
-  /* Botón primario - gradiente indigo/púrpura */
+  /* Botón primario - gradiente naranja atardecer suave */
   .btn-primary {
-    @apply w-full py-3 px-6 bg-gradient-to-r from-indigo-500 to-purple-600 
-           hover:from-indigo-600 hover:to-purple-700 text-white font-semibold 
+    @apply w-full py-3 px-6 bg-gradient-to-r from-amber-400 to-orange-400 
+           hover:from-amber-500 hover:to-orange-500 text-gray-900 font-semibold 
            rounded-xl transition-all duration-200 transform hover:scale-[1.02] 
-           active:scale-[0.98] shadow-lg hover:shadow-indigo-500/25;
+           active:scale-[0.98] shadow-lg hover:shadow-amber-500/25;
   }
 
   /* Botón secundario - transparente */
@@ -105,14 +105,14 @@
   .input-field {
     @apply w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl 
            text-white placeholder-gray-400 focus:outline-none focus:ring-2 
-           focus:ring-indigo-500 focus:border-transparent transition-all;
+           focus:ring-amber-400 focus:border-transparent transition-all;
   }
 
   /* Selector estilizado con chevron SVG */
   .input-field-select {
     @apply w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl 
            text-white focus:outline-none focus:ring-2 
-           focus:ring-indigo-500 focus:border-transparent transition-all
+           focus:ring-amber-400 focus:border-transparent transition-all
            cursor-pointer appearance-none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
     background-repeat: no-repeat;
@@ -167,7 +167,7 @@
   /* Código de sala grande */
   .room-code-display {
     @apply text-4xl font-bold tracking-[0.3em] text-transparent 
-           bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400
+           bg-clip-text bg-gradient-to-r from-amber-300 to-orange-300
            drop-shadow-lg;
   }
 
@@ -179,7 +179,7 @@
   /* Texto con gradiente */
   .gradient-text {
     @apply text-transparent bg-clip-text bg-gradient-to-r 
-           from-indigo-400 via-purple-400 to-pink-400;
+           from-amber-300 via-orange-300 to-rose-300;
   }
 }
 
@@ -203,8 +203,8 @@
   }
 
   @keyframes glow {
-    from { box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); }
-    to { box-shadow: 0 0 30px rgba(99, 102, 241, 0.6); }
+    from { box-shadow: 0 0 20px rgba(245, 158, 11, 0.3); }
+    to { box-shadow: 0 0 30px rgba(245, 158, 11, 0.6); }
   }
 
   /* Animación de victoria */
@@ -255,5 +255,15 @@
     0%, 100% { transform: rotate(0deg); }
     25% { transform: rotate(-3deg); }
     75% { transform: rotate(3deg); }
+  }
+
+  /* Fade in para menus */
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }
