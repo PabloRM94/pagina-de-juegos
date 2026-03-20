@@ -72,7 +72,7 @@ export function TabNavigation({
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700 hover:bg-gray-700 transition-colors"
+        className="fixed top-16 left-4 z-50 p-2 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700 hover:bg-gray-700 transition-colors"
         aria-label="Abrir menú"
       >
         <svg 
@@ -93,7 +93,7 @@ export function TabNavigation({
       {isOpen && (
         <div 
           ref={menuRef}
-          className="fixed top-14 left-4 z-40 bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-700 shadow-2xl py-2 min-w-[180px] animate-fade-in"
+          className="fixed top-26 left-4 z-40 bg-gray-800/95 backdrop-blur-xl rounded-xl border border-gray-700 shadow-2xl py-2 min-w-[180px] animate-fade-in"
         >
           {tabs.map((tab) => (
             <button

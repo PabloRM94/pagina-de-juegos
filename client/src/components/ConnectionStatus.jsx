@@ -53,7 +53,7 @@ export function ConnectionStatus() {
   // Si ya se mostró conectado alguna vez y ahora está conectado, solo mostrar punto
   if (shownOnce && connected) {
     return (
-      <div className="fixed top-4 right-4 z-50" title="Conectado">
+      <div className="fixed top-16 right-4 z-50" title="Conectado">
         <span className="w-3 h-3 rounded-full bg-green-400 animate-pulse block"></span>
       </div>
     );
@@ -61,7 +61,7 @@ export function ConnectionStatus() {
   
   // Mostrar indicador completo cuando está desconectado
   return (
-    <div className={`fixed top-4 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 ${
+    <div className={`fixed top-16 right-4 z-50 px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 ${
       connected 
         ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
         : 'bg-red-500/20 text-red-400 border border-red-500/30'
