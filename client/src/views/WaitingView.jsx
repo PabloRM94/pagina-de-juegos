@@ -1,4 +1,5 @@
-import { Card, Countdown } from '../components/index.js';
+import { useState } from 'react';
+import { Card, Countdown, Checklist } from '../components/index.js';
 import { api, ENDPOINTS } from '../api/index.js';
 
 /**
@@ -8,8 +9,27 @@ import { api, ENDPOINTS } from '../api/index.js';
  * @param {object} props.user - Usuario actual
  * @param {function} props.onConfigUpdate - Callback cuando se actualiza la config
  * @param {function} props.onNavigateToDashboard - Callback para ir al dashboard
+ * @param {array} props.checklist - Lista de items de checklist
+ * @param {function} props.onAddChecklistItem - Callback para agregar item
+ * @param {function} props.onToggleChecklistItem - Callback para toggle item
+ * @param {function} props.onDeleteChecklistItem - Callback para eliminar item
+ * @param {function} props.onUpdateUserName - Callback para actualizar nombre
  */
-export function WaitingView({ tripConfig, user, onConfigUpdate, onNavigateToDashboard }) {
+export function WaitingView({ 
+  tripConfig, 
+  user, 
+  onConfigUpdate, 
+  onNavigateToDashboard,
+  checklist,
+  onAddChecklistItem,
+  onToggleChecklistItem,
+  onDeleteChecklistItem,
+  onUpdateUserName
+}) {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(user?.name || '');
+  const [nameError, setNameError] = useState('');
+  
   const handleConfigChange = async (key, value) => {
     console.log('=== CONFIG CHANGE ===');
     console.log('User:', user);
@@ -41,6 +61,27 @@ export function WaitingView({ tripConfig, user, onConfigUpdate, onNavigateToDash
   
   const isAdmin = user?.isAdmin === 1 || user?.isAdmin === '1' || user?.isAdmin === true;
   
+  const handleSaveName = async () => {
+    if (!newName.trim() || newName.length < 2 || newName.length > 20) {
+      setNameError('El nombre debe tener entre 2 y 20 caracteres');
+      return;
+    }
+    
+    const result = await onUpdateUserName(user.id, newName.trim());
+    if (result.success) {
+      setIsEditingName(false);
+      setNameError('');
+    } else {
+      setNameError(result.error || 'Error al actualizar');
+    }
+  };
+  
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setNewName(user?.name || '');
+    setNameError('');
+  };
+  
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8 text-center">
@@ -59,6 +100,14 @@ export function WaitingView({ tripConfig, user, onConfigUpdate, onNavigateToDash
             onComplete={handleStartTrip}
           />
         </Card>
+        
+        {/* Checklist */}
+        <Checklist
+          items={checklist || []}
+          onAddItem={onAddChecklistItem}
+          onToggleItem={onToggleChecklistItem}
+          onDeleteItem={onDeleteChecklistItem}
+        />
         
         {/* Panel de Admin */}
         {isAdmin && (
@@ -131,7 +180,35 @@ export function WaitingView({ tripConfig, user, onConfigUpdate, onNavigateToDash
         
         <div className="text-gray-500 text-sm">
           <p>Viaje: 27-29 Marzo 2026</p>
-          <p>Usuario: {user?.name}</p>
+          {isEditingName ? (
+            <div className="mt-2">
+              <div className="flex gap-2 justify-center items-center">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  maxLength={20}
+                  className="input-field w-32 text-center text-sm"
+                  autoFocus
+                />
+                <button onClick={handleSaveName} className="btn-primary px-2 py-1 text-xs">
+                  ✓
+                </button>
+                <button onClick={handleCancelEditName} className="btn-secondary px-2 py-1 text-xs">
+                  ✕
+                </button>
+              </div>
+              {nameError && <p className="text-red-400 text-xs mt-1">{nameError}</p>}
+            </div>
+          ) : (
+            <button 
+              onClick={() => setIsEditingName(true)}
+              className="text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1"
+            >
+              {user?.name}
+              <span className="text-xs">✏️</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

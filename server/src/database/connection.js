@@ -12,6 +12,13 @@ const db = new Database(dbPath);
  * Inicializa las tablas de la base de datos
  */
 export function initDatabase() {
+  // Agregar columna section si no existe (para bases de datos existentes)
+  try {
+    db.exec("ALTER TABLE checklist_items ADD COLUMN section TEXT DEFAULT ''");
+  } catch (e) {
+    // Columna ya existe, ignore
+  }
+  
   db.exec(`
     -- Tabla de usuarios
     CREATE TABLE IF NOT EXISTS users (
@@ -68,6 +75,19 @@ export function initDatabase() {
       new_value INTEGER NOT NULL,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
+    );
+
+    -- Lista de checks compartida
+    CREATE TABLE IF NOT EXISTS checklist_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      text TEXT NOT NULL,
+      section TEXT DEFAULT '',
+      completed INTEGER DEFAULT 0,
+      completed_by INTEGER,
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (completed_by) REFERENCES users(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
     );
 
     -- Estado del Turbo Lata

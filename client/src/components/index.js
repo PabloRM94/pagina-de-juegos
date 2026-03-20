@@ -8,3 +8,5 @@ export { ConnectionStatus } from './ConnectionStatus.jsx';
 export { TabNavigation } from './TabNavigation.jsx';
 export { AppLayout } from './AppLayout.jsx';
 export { LogoutModal } from './LogoutModal.jsx';
+export { Checklist } from './Checklist.jsx';
+export { ConfirmModal } from './ConfirmModal.jsx';

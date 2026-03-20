@@ -110,4 +110,42 @@ router.post('/reset-password-direct', async (req, res) => {
   }
 });
 
+/**
+ * PUT /api/users/:id/name
+ * Actualiza el nombre de un usuario
+ */
+router.put('/users/:id/name', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name } = req.body;
+    const currentUserId = req.user.id;
+    
+    // Solo el propio usuario puede cambiar su nombre
+    if (currentUserId !== parseInt(id, 10)) {
+      return res.status(403).json({ success: false, error: 'No puedes cambiar el nombre de otro usuario' });
+    }
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'El nombre es requerido' });
+    }
+    
+    if (name.length < 2 || name.length > 20) {
+      return res.status(400).json({ success: false, error: 'El nombre debe tener entre 2 y 20 caracteres' });
+    }
+    
+    // Verificar que el nombre no exista ya (excluyendo el usuario actual)
+    const existingUser = db.prepare('SELECT id FROM users WHERE name = ? AND id != ?').get(name, id);
+    if (existingUser) {
+      return res.status(400).json({ success: false, error: 'El nombre ya está en uso' });
+    }
+    
+    db.prepare('UPDATE users SET name = ? WHERE id = ?').run(name.trim(), id);
+    
+    res.json({ success: true, name: name.trim() });
+  } catch (error) {
+    console.error('Error actualizando nombre:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
 export default router;

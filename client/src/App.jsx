@@ -30,10 +30,10 @@ import { AppLayout, ConnectionStatus, LogoutModal } from './components/index.js'
 
 export default function App() {
   // === Auth ===
-  const { user, token, loading: authLoading, error: authError, login, register, logout, loginAsGuest } = useAuth();
+  const { user, token, loading: authLoading, error: authError, login, register, logout, loginAsGuest, updateUser } = useAuth();
   
   // === Counters ===
-  const { counters, users, updateCounter, refreshCounters } = useCounters(token);
+  const { counters, users, updateCounter, refreshCounters, checklist, loadChecklist, addChecklistItem, toggleChecklistItem, deleteChecklistItem, updateUserName } = useCounters(token);
   
   // === Trip Config ===
   const [tripConfig, setTripConfig] = useState(null);
@@ -187,6 +187,10 @@ export default function App() {
       if (turboRes.success) setTurboState(turboRes.turboState);
     };
     
+    const handleChecklistUpdated = async () => {
+      await loadChecklist();
+    };
+    
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('counter-updated', handleCountersUpdated);
@@ -195,6 +199,7 @@ export default function App() {
     socket.on('turbo-confirmation-updated', handleTurboConfirmations);
     socket.on('turbo-completed', handleTurboCompleted);
     socket.on('turbo-cancelled', handleTurboCancelled);
+    socket.on('checklist-updated', handleChecklistUpdated);
     
     return () => {
       socket.off('connect', handleConnect);
@@ -205,6 +210,7 @@ export default function App() {
       socket.off('turbo-confirmation-updated', handleTurboConfirmations);
       socket.off('turbo-completed', handleTurboCompleted);
       socket.off('turbo-cancelled', handleTurboCancelled);
+      socket.off('checklist-updated', handleChecklistUpdated);
     };
   }, [refreshCounters]);
   
@@ -429,6 +435,17 @@ export default function App() {
           user={user}
           onConfigUpdate={handleConfigUpdate}
           onNavigateToDashboard={() => setView(VIEWS.DASHBOARD)}
+          checklist={checklist}
+          onAddChecklistItem={addChecklistItem}
+          onToggleChecklistItem={toggleChecklistItem}
+          onDeleteChecklistItem={deleteChecklistItem}
+          onUpdateUserName={async (userId, newName) => {
+            const result = await updateUserName(userId, newName);
+            if (result.success) {
+              updateUser({ name: newName });
+            }
+            return result;
+          }}
         />
         <LogoutModal 
           isOpen={showLogoutModal}
@@ -460,6 +477,17 @@ export default function App() {
           onTriggerTurbo={handleTriggerTurbo}
           onConfirmTurbo={handleConfirmTurbo}
           onCancelTurbo={handleCancelTurbo}
+          checklist={checklist}
+          onAddChecklistItem={addChecklistItem}
+          onToggleChecklistItem={toggleChecklistItem}
+          onDeleteChecklistItem={deleteChecklistItem}
+          onUpdateUserName={async (userId, newName) => {
+            const result = await updateUserName(userId, newName);
+            if (result.success) {
+              updateUser({ name: newName });
+            }
+            return result;
+          }}
         />
         <LogoutModal 
           isOpen={showLogoutModal}

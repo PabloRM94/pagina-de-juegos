@@ -154,6 +154,13 @@ export function useAuth() {
     }
   }, []);
   
+  /**
+   * Actualiza el usuario (para cuando cambia el nombre)
+   */
+  const updateUser = useCallback((updates) => {
+    setUser(prev => prev ? { ...prev, ...updates } : null);
+  }, []);
+  
   return {
     user,
     token,
@@ -164,6 +171,7 @@ export function useAuth() {
     register,
     logout,
     loginAsGuest,
+    updateUser,
     isAuthenticated: !!token && !!user
   };
 }

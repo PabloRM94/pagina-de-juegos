@@ -233,4 +233,134 @@ router.get('/users', authenticateToken, (req, res) => {
   }
 });
 
+// ============ CHECKLIST COMPARTIDA ============
+
+/**
+ * GET /api/checklist
+ * Obtiene todos los items de la checklist
+ */
+router.get('/checklist', authenticateToken, (req, res) => {
+  try {
+    const items = db.prepare(`
+      SELECT cl.*, u.name as created_by_name
+      FROM checklist_items cl
+      JOIN users u ON cl.created_by = u.id
+      ORDER BY cl.created_at DESC
+    `).all();
+    res.json({ success: true, items });
+  } catch (error) {
+    console.error('Error obteniendo checklist:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * POST /api/checklist
+ * Crea un nuevo item en la checklist (opcionalmente en una sección)
+ */
+router.post('/checklist', authenticateToken, (req, res) => {
+  try {
+    const { text, section } = req.body;
+    const userId = req.user.id;
+    
+    console.log('=== CHECKLIST POST ===');
+    console.log('text:', text);
+    console.log('section:', section);
+    console.log('section type:', typeof section);
+    
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'El texto es requerido' });
+    }
+    
+    if (text.length > 20) {
+      return res.status(400).json({ success: false, error: 'Máximo 20 caracteres' });
+    }
+    
+    const sectionName = (section || '').trim();
+    console.log('sectionName a guardar:', sectionName);
+    
+    const result = db.prepare(
+      'INSERT INTO checklist_items (text, section, created_by) VALUES (?, ?, ?)'
+    ).run(text.trim(), sectionName, userId);
+    
+    // Obtener el item creado con el nombre
+    const newItem = db.prepare(`
+      SELECT cl.*, u.name as created_by_name
+      FROM checklist_items cl
+      JOIN users u ON cl.created_by = u.id
+      WHERE cl.id = ?
+    `).get(result.lastInsertRowid);
+    
+    // Notificar a todos los clientes
+    if (req.app.get('io')) {
+      req.app.get('io').emit('checklist-updated');
+    }
+    
+    res.json({ success: true, item: newItem });
+  } catch (error) {
+    console.error('Error creando item de checklist:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * PUT /api/checklist/:id/toggle
+ * Toggle completado de un item
+ */
+router.put('/checklist/:id/toggle', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    
+    const item = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
+    if (!item) {
+      return res.status(404).json({ success: false, error: 'Item no encontrado' });
+    }
+    
+    const newCompleted = item.completed ? 0 : 1;
+    const newCompletedBy = newCompleted ? userId : null;
+    
+    db.prepare(
+      'UPDATE checklist_items SET completed = ?, completed_by = ? WHERE id = ?'
+    ).run(newCompleted, newCompletedBy, id);
+    
+    // Notificar a todos los clientes
+    if (req.app.get('io')) {
+      req.app.get('io').emit('checklist-updated');
+    }
+    
+    res.json({ success: true, completed: newCompleted });
+  } catch (error) {
+    console.error('Error togglando item:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * DELETE /api/checklist/:id
+ * Elimina un item de la checklist
+ */
+router.delete('/checklist/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const item = db.prepare('SELECT * FROM checklist_items WHERE id = ?').get(id);
+    if (!item) {
+      return res.status(404).json({ success: false, error: 'Item no encontrado' });
+    }
+    
+    db.prepare('DELETE FROM checklist_items WHERE id = ?').run(id);
+    
+    // Notificar a todos los clientes
+    if (req.app.get('io')) {
+      req.app.get('io').emit('checklist-updated');
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error eliminando item:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
 export default router;

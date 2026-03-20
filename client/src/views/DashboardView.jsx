@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CounterCard } from '../components/index.js';
+import { Card, CounterCard, Checklist } from '../components/index.js';
 
 /**
  * Filtra usuarios reales (no invitados - tienen ID positivo)
@@ -20,6 +20,11 @@ const filterRealUsers = (users) => users.filter(u => u.id > 0);
  * @param {function} props.onTriggerTurbo - Callback para activar turbo
  * @param {function} props.onConfirmTurbo - Callback para confirmar turbo
  * @param {function} props.onCancelTurbo - Callback para cancelar turbo
+ * @param {array} props.checklist - Lista de items de checklist
+ * @param {function} props.onAddChecklistItem - Callback para agregar item
+ * @param {function} props.onToggleChecklistItem - Callback para toggle item
+ * @param {function} props.onDeleteChecklistItem - Callback para eliminar item
+ * @param {function} props.onUpdateUserName - Callback para actualizar nombre
  */
 export function DashboardView({
   user,
@@ -31,9 +36,17 @@ export function DashboardView({
   onToggleTurbo,
   onTriggerTurbo,
   onConfirmTurbo,
-  onCancelTurbo
+  onCancelTurbo,
+  checklist,
+  onAddChecklistItem,
+  onToggleChecklistItem,
+  onDeleteChecklistItem,
+  onUpdateUserName
 }) {
   const [selectedUserId, setSelectedUserId] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(user?.name || '');
+  const [nameError, setNameError] = useState('');
   
   // Filtrar usuarios reales (no invitados)
   const realUsers = filterRealUsers(users);
@@ -105,13 +118,66 @@ export function DashboardView({
     { slug: 'turbolatas', name: 'Turbolatas', icon: '🥫' }
   ];
   
+  const handleSaveName = async () => {
+    if (!newName.trim() || newName.length < 2 || newName.length > 20) {
+      setNameError('El nombre debe tener entre 2 y 20 caracteres');
+      return;
+    }
+    
+    const result = await onUpdateUserName(user.id, newName.trim());
+    if (result.success) {
+      setIsEditingName(false);
+      setNameError('');
+    } else {
+      setNameError(result.error || 'Error al actualizar');
+    }
+  };
+  
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setNewName(user?.name || '');
+    setNameError('');
+  };
+  
   return (
     <div className="p-4 pb-24">
       <div className="max-w-md mx-auto space-y-6">
-        {/* Header */}
+        {/* Header con edición de nombre */}
         <div className="text-center pt-4">
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-gray-400">Bienvenido, {user?.name}</p>
+          
+          {isEditingName ? (
+            <div className="mt-2">
+              <div className="flex gap-2 justify-center">
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  maxLength={20}
+                  className="input-field w-40 text-center"
+                  autoFocus
+                />
+                <button onClick={handleSaveName} className="btn-primary text-sm px-3">
+                  ✓
+                </button>
+                <button onClick={handleCancelEditName} className="btn-secondary text-sm px-3">
+                  ✕
+                </button>
+              </div>
+              {nameError && <p className="text-red-400 text-xs mt-1">{nameError}</p>}
+            </div>
+          ) : (
+            <div className="mt-2">
+              <p className="text-gray-400 inline">Bienvenido, </p>
+              <button 
+                onClick={() => setIsEditingName(true)}
+                className="text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1"
+              >
+                {user?.name}
+                <span className="text-xs">✏️</span>
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Selector de usuario para admin */}
@@ -138,6 +204,14 @@ export function DashboardView({
             )}
           </Card>
         )}
+        
+        {/* Checklist */}
+        <Checklist
+          items={checklist || []}
+          onAddItem={onAddChecklistItem}
+          onToggleItem={onToggleChecklistItem}
+          onDeleteItem={onDeleteChecklistItem}
+        />
         
         {/* Contadores */}
         <div className="grid grid-cols-2 gap-3">

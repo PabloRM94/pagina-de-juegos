@@ -13,7 +13,7 @@ export const ENDPOINTS = {
   
   // Counters
   COUNTERS: '/api/counters',
-  COUNTER_BY_USER: (userId) => `/api/counters/${userId}`,
+  COUNTER_BY_USER: (userId) => '/api/counters/' + userId,
   COUNTER_HISTORY: '/api/counters/history',
   COUNTER_TYPES: '/api/counter-types',
   
@@ -24,6 +24,14 @@ export const ENDPOINTS = {
   TURBO_CONFIRM: '/api/turbo/confirm',
   TURBO_CANCEL: '/api/turbo/cancel',
   TURBO_CONFIG: '/api/turbo/config',
+
+  // Checklist
+  CHECKLIST: '/api/checklist',
+  CHECKLIST_TOGGLE: (id) => '/api/checklist/' + id + '/toggle',
+  CHECKLIST_DELETE: (id) => '/api/checklist/' + id,
+  
+  // User
+  UPDATE_USER_NAME: (userId) => '/api/users/' + userId + '/name',
 };
 
 export default ENDPOINTS;
