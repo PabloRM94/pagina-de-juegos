@@ -20,6 +20,7 @@ export function TabNavigation({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef(null);
+  const buttonRef = useRef(null);
 
   if (!isAuthenticated) return null;
 
@@ -34,9 +35,13 @@ export function TabNavigation({
     tabs.push({ id: VIEWS.ADMIN, label: 'Admin', icon: '⚙️' });
   }
 
-  // Cerrar menú al hacer click fuera
+  // Cerrar menú al hacer click fuera (pero no en el botón hamburguer)
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Ignorar clicks en el botón hamburguer
+      if (buttonRef.current && buttonRef.current.contains(event.target)) {
+        return;
+      }
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setIsOpen(false);
       }
@@ -65,6 +70,7 @@ export function TabNavigation({
     <>
       {/* Botón hamburguer - Esquina superior izquierda */}
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
         className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-gray-800/80 backdrop-blur-sm border border-gray-700 hover:bg-gray-700 transition-colors"
         aria-label="Abrir menú"
