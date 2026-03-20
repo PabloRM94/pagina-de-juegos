@@ -363,6 +363,7 @@ export default function App() {
           setPassword={setPassword}
           guestMode={tripConfig?.guest_mode === 1}
           onLoginAsGuest={handleLoginAsGuest}
+          showPWABanner={false}
         />
         <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
           © Hecho por Pabels con amor ❤️

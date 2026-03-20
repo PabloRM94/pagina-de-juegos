@@ -149,7 +149,32 @@ export function AdminView({
                 <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.guest_mode === 1 ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
               </button>
             </div>
-            
+
+            {/* Toggle: Mostrar banner de PWA */}
+            <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+              <div className="text-left">
+                <p className="text-white font-medium">
+                  {tripConfig?.show_pwa_banner === 0 ? '📱 Banner PWA oculto' : '📱 Banner PWA visible'}
+                </p>
+                <p className="text-gray-400 text-xs">
+                  {tripConfig?.show_pwa_banner === 0 ? 'No se muestra el banner de instalación' : 'Muestra el banner para instalar la app'}
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  const currentValue = tripConfig?.show_pwa_banner === 0 ? 0 : 1;
+                  const newValue = currentValue === 1 ? 0 : 1;
+                  const result = await api.post(ENDPOINTS.TRIP_CONFIG, { show_pwa_banner: newValue });
+                  if (result.success) {
+                    onConfigUpdate({ ...tripConfig, show_pwa_banner: newValue });
+                  }
+                }}
+                className={`w-12 h-6 rounded-full transition-all ${tripConfig?.show_pwa_banner !== 0 ? 'bg-blue-500' : 'bg-gray-600'}`}
+              >
+                <div className={`w-5 h-5 bg-white rounded-full transition-transform ${tripConfig?.show_pwa_banner !== 0 ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+              </button>
+            </div>
+
             {/* Botones de control */}
             <div className="flex gap-2">
               <button

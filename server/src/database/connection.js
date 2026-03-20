@@ -32,7 +32,8 @@ export function initDatabase() {
       trip_started INTEGER DEFAULT 0,
       trip_ended INTEGER DEFAULT 0,
       admin_only INTEGER DEFAULT 0,
-      guest_mode INTEGER DEFAULT 0
+      guest_mode INTEGER DEFAULT 0,
+      show_pwa_banner INTEGER DEFAULT 1
     );
 
     -- Contadores por día por usuario
