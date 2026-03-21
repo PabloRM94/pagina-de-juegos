@@ -19,7 +19,13 @@ export const VIEWS = {
   TIMESUP_WORD_INPUT: 'timesup-word-input',
   TIMESUP_PLAY: 'timesup-play',
   TIMESUP_ROUND_RESULT: 'timesup-round-result',
-  TIMESUP_FINAL_RESULT: 'timesup-final-result'
+  TIMESUP_FINAL_RESULT: 'timesup-final-result',
+  // Apuestas views
+  APUESTAS_LOBBY: 'apuestas-lobby',
+  APUESTAS_CONFIG: 'apuestas-config',
+  APUESTAS_PLAY: 'apuestas-play',
+  APUESTAS_RESULT: 'apuestas-result',
+  APUESTAS_FINAL: 'apuestas-final'
 };
 
 // URLs de API

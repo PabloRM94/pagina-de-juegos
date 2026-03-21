@@ -16,3 +16,9 @@ export { TimesUpWordInputView } from './TimesUpWordInputView.jsx';
 export { TimesUpPlayView } from './TimesUpPlayView.jsx';
 export { TimesUpRoundResultView } from './TimesUpRoundResultView.jsx';
 export { TimesUpFinalResultView } from './TimesUpFinalResultView.jsx';
+// Apuestas views
+export { default as ApuestasLobbyView } from './ApuestasLobbyView.jsx';
+export { default as ApuestasConfigView } from './ApuestasConfigView.jsx';
+export { default as ApuestasPlayView } from './ApuestasPlayView.jsx';
+export { default as ApuestasResultView } from './ApuestasResultView.jsx';
+export { default as ApuestasFinalView } from './ApuestasFinalView.jsx';

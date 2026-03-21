@@ -23,7 +23,12 @@ import {
   TimesUpWordInputView,
   TimesUpPlayView,
   TimesUpRoundResultView,
-  TimesUpFinalResultView
+  TimesUpFinalResultView,
+  ApuestasLobbyView,
+  ApuestasConfigView,
+  ApuestasPlayView,
+  ApuestasResultView,
+  ApuestasFinalView
 } from './views/index.js';
 
 import { AppLayout, ConnectionStatus, LogoutModal } from './components/index.js';
@@ -759,6 +764,78 @@ export default function App() {
       <>
         <ConnectionStatus />
         <TimesUpFinalResultView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Apuestas - Lobby
+  if (view === VIEWS.APUESTAS_LOBBY) {
+    return (
+      <>
+        <ConnectionStatus />
+        <ApuestasLobbyView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Apuestas - Config
+  if (view === VIEWS.APUESTAS_CONFIG) {
+    return (
+      <>
+        <ConnectionStatus />
+        <ApuestasConfigView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Apuestas - Play
+  if (view === VIEWS.APUESTAS_PLAY) {
+    return (
+      <>
+        <ConnectionStatus />
+        <ApuestasPlayView
+          onNavigate={handleTabNavigate}
+        />
+      </>
+    );
+  }
+
+  // Apuestas - Result
+  if (view === VIEWS.APUESTAS_RESULT) {
+    return (
+      <>
+        <ConnectionStatus />
+        <ApuestasResultView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Apuestas - Final
+  if (view === VIEWS.APUESTAS_FINAL) {
+    return (
+      <>
+        <ConnectionStatus />
+        <ApuestasFinalView
           onNavigate={handleTabNavigate}
         />
         <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">

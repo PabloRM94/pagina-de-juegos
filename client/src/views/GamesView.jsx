@@ -18,6 +18,13 @@ const GAMES = [
     icon: '⏱️',
     description: 'Adivina palabras en equipo',
     view: VIEWS.TIMESUP_LOBBY
+  },
+  {
+    id: 'apuestas',
+    name: 'Apuestas',
+    icon: '🎯',
+    description: 'Cronómetro de precisión',
+    view: VIEWS.APUESTAS_LOBBY
   }
 ];
 
