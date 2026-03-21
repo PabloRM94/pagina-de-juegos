@@ -3,7 +3,6 @@ import { setupApuestasSocketHandlers } from './apuestasHandlers.js';
 import { v4 as uuidv4 } from 'uuid';
 import { createRoom, addPlayerToRoom, removePlayerFromRooms } from './room.js';
 import { assignRandomRole, assignBalancedRole, resolveEncounter } from '../services/gameEngine.js';
-import { handleApuestasDisconnect } from '../services/apuestasEngine.js';
 
 import { 
   createTimesUpState, 
@@ -43,79 +42,6 @@ export function setupSocketHandlers(io) {
   
   // Salas de Apuestas - cronómetro de precisión
   const apuestasRooms = new Map();
-  
-  // Función helper para calcular winner de apuestas
-  const calculateApuestasWinner = (room, io) => {
-    const targetNumber = room.config.targetNumber;
-    const results = [];
-    
-    const playersToCheck = room.game.tieBreaker 
-      ? room.game.tieBreakerPlayers 
-      : room.players.map(p => p.id);
-    
-    playersToCheck.forEach(playerId => {
-      const stoppedData = room.game.stoppedPlayers[playerId];
-      const player = room.players.find(p => p.id === playerId);
-      
-      if (stoppedData && player) {
-        const diff = Math.abs(stoppedData.time - targetNumber);
-        results.push({
-          playerId,
-          playerName: player.name,
-          time: stoppedData.time,
-          diff
-        });
-      } else if (player) {
-        results.push({
-          playerId,
-          playerName: player.name,
-          time: null,
-          diff: Infinity,
-          disconnected: true
-        });
-      }
-    });
-    
-    results.sort((a, b) => a.diff - b.diff);
-    room.game.results = results;
-    
-    // Verificar empate
-    if (results.length >= 2 && results[0].diff === results[1].diff) {
-      const tiedPlayers = results.filter(r => r.diff === results[0].diff);
-      room.game.tieBreaker = true;
-      room.game.tieBreakerPlayers = tiedPlayers.map(r => r.playerId);
-      room.game.stoppedPlayers = {};
-      room.game.roundStartTime = Date.now();
-      
-      io.emit('apuestas-tie-breaker', {
-        roomId: room.id,
-        tiedPlayers: tiedPlayers.map(r => ({
-          playerId: r.playerId,
-          playerName: r.playerName,
-          time: r.time,
-          diff: r.diff
-        })),
-        targetNumber: room.config.targetNumber
-      });
-      return;
-    }
-    
-    // Winner de la ronda
-    const winner = results[0];
-    room.game.winner = winner.playerId;
-    room.scores[winner.playerId] = (room.scores[winner.playerId] || 0) + 1;
-    room.state = 'reveal';
-    
-    io.emit('apuestas-round-ended', {
-      roomId: room.id,
-      results,
-      winner: { playerId: winner.playerId, playerName: winner.playerName },
-      scores: room.scores,
-      round: room.config.currentRound,
-      totalRounds: room.config.rounds,
-      targetNumber: room.config.targetNumber
-    });
-  };
   
   // Función helper para buscar sala de Time's Up
   const getTimesupRoom = (roomId) => {
@@ -1190,7 +1116,7 @@ export function setupSocketHandlers(io) {
     });
 
     // ==================== APUESTAS - REGISTRAR HANDLERS ====================
-    setupApuestasSocketHandlers(io, socket, apuestasRooms, calculateApuestasWinner);
+    setupApuestasSocketHandlers(io, socket, apuestasRooms);
 
     // ==================== DESCONEXIÓN ====================
     socket.on('disconnect', (reason) => {
@@ -1205,9 +1131,6 @@ export function setupSocketHandlers(io) {
         console.log('Jugadores restantes en sala:', affectedRoom.players.length);
         io.to(affectedRoom.id).emit('room-updated', affectedRoom);
       }
-      
-      // Manejar desconexión en salas de Apuestas
-      handleApuestasDisconnect(apuestasRooms, io, socket.id);
       
       console.log('===========================================');
     });
