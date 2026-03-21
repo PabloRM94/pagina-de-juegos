@@ -208,18 +208,108 @@ export async function initDatabase() {
 
   if (useTurso) {
     // Para Turso, ejecutar cada statement individualmente
-    // Turso ya tiene las tablas creadas por el script de migración
-    // Solo ejecutamos los INSERT para asegurar datos iniciales
+    console.log('📋 Creando tablas en Turso si no existen...');
+    
+    const tables = [
+      `CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        is_admin INTEGER DEFAULT 0,
+        reset_token TEXT,
+        reset_token_expires DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS trip_config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        start_date DATETIME NOT NULL,
+        end_date DATETIME NOT NULL,
+        trip_started INTEGER DEFAULT 0,
+        trip_ended INTEGER DEFAULT 0,
+        admin_only INTEGER DEFAULT 0,
+        guest_mode INTEGER DEFAULT 0,
+        show_pwa_banner INTEGER DEFAULT 1
+      )`,
+      `CREATE TABLE IF NOT EXISTS counters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        cervezas INTEGER DEFAULT 0,
+        banos_piscina INTEGER DEFAULT 0,
+        agua_gas INTEGER DEFAULT 0,
+        turbolatas INTEGER DEFAULT 0,
+        custom_counters TEXT DEFAULT '{}',
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE(user_id, date)
+      )`,
+      `CREATE TABLE IF NOT EXISTS counter_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS counter_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        counter_type TEXT NOT NULL,
+        old_value INTEGER NOT NULL,
+        new_value INTEGER NOT NULL,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS checklist_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        text TEXT NOT NULL,
+        section TEXT DEFAULT '',
+        completed INTEGER DEFAULT 0,
+        completed_by INTEGER,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (completed_by) REFERENCES users(id),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS turbo_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        active INTEGER DEFAULT 0,
+        last_triggered DATETIME,
+        current_target_user_id INTEGER,
+        required_confirmations INTEGER DEFAULT 3,
+        current_confirmations INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS turbo_confirmations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        target_user_id INTEGER NOT NULL,
+        confirmed_by_user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (target_user_id) REFERENCES users(id),
+        FOREIGN KEY (confirmed_by_user_id) REFERENCES users(id)
+      )`
+    ];
+
+    for (const sql of tables) {
+      try {
+        await db.prepare(sql).run();
+        console.log('   ✓ Tabla creada');
+      } catch (e) {
+        // Tabla ya existe o error - continuar
+        console.log('   - Tabla:', e.message.includes('already exists') ? 'ya existe' : 'error: ' + e.message);
+      }
+    }
+
+    // Insertar datos iniciales
     try {
       await db.prepare('INSERT OR IGNORE INTO trip_config (id, start_date, end_date, trip_started, trip_ended) VALUES (1, ?, ?, 0, 0)').run('2026-03-27 19:00:00', '2026-03-29 23:59:59');
-    } catch (e) {
-      // Ignorar si ya existe
-    }
+      console.log('   ✓ trip_config inicializado');
+    } catch (e) { /* ignorar */ }
+    
     try {
       await db.prepare('INSERT OR IGNORE INTO turbo_state (id, active, last_triggered, current_target_user_id, required_confirmations, current_confirmations) VALUES (1, 0, NULL, NULL, 3, 0)').run();
-    } catch (e) {
-      // Ignorar si ya existe
-    }
+      console.log('   ✓ turbo_state inicializado');
+    } catch (e) { /* ignorar */ }
+    
+    console.log('✅ Tablas creadas en Turso');
   } else {
     db.exec(createTablesSQL);
   }
