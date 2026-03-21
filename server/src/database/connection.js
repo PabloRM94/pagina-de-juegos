@@ -55,6 +55,12 @@ class DbWrapper {
   }
 }
 
+// Debug: Mostrar variables de entorno disponibles
+console.log('=== DATABASE CONFIG DEBUG ===');
+console.log('TURSO_DATABASE_URL:', process.env.TURSO_DATABASE_URL ? '✓ configurada' : '✗ NO configurada');
+console.log('TURSO_AUTH_TOKEN:', process.env.TURSO_AUTH_TOKEN ? '✓ configurada' : '✗ NO configurada');
+console.log('================================');
+
 // Determinar tipo de conexión según variables de entorno
 const useTurso = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN;
 
@@ -63,11 +69,21 @@ let db;
 if (useTurso) {
   // Conexión a Turso (producción o desarrollo con credenciales)
   console.log('🔌 Conectando a Turso...');
-  const client = createClient({
-    url: process.env.TURSO_DATABASE_URL,
-    authToken: process.env.TURSO_AUTH_TOKEN
-  });
-  db = new DbWrapper(client);
+  console.log('   URL:', process.env.TURSO_DATABASE_URL);
+  try {
+    const client = createClient({
+      url: process.env.TURSO_DATABASE_URL,
+      authToken: process.env.TURSO_AUTH_TOKEN
+    });
+    db = new DbWrapper(client);
+    console.log('✅ Conexión a Turso establecida');
+  } catch (err) {
+    console.error('❌ Error conectando a Turso:', err.message);
+    // Caer a SQLite local si Turso falla
+    console.log('📁 Cayendo a base de datos local...');
+    const dbPath = join(__dirname, 'trip.db');
+    db = new Database(dbPath);
+  }
 } else {
   // Conexión local con better-sqlite3 (desarrollo offline)
   console.log('📁 Usando base de datos local...');
@@ -209,7 +225,9 @@ export async function initDatabase() {
   }
 }
 
-// Inicializar automáticamente
-initDatabase();
+// Inicializar automáticamente con await para asegurar que termine antes de recibir requests
+initDatabase()
+  .then(() => console.log('✅ Base de datos inicializada'))
+  .catch(err => console.error('❌ Error inicializando base de datos:', err.message));
 
 export default db;
