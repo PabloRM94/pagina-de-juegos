@@ -61,19 +61,21 @@ console.log('TURSO_DATABASE_URL:', process.env.TURSO_DATABASE_URL ? '✓ configu
 console.log('TURSO_AUTH_TOKEN:', process.env.TURSO_AUTH_TOKEN ? '✓ configurada' : '✗ NO configurada');
 console.log('================================');
 
-// Determinar tipo de conexión según variables de entorno
-const useTurso = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN;
+// Determinar tipo de conexión según variables de entorno (con trim para evitar espacios)
+const tursoUrl = process.env.TURSO_DATABASE_URL?.trim();
+const tursoToken = process.env.TURSO_AUTH_TOKEN?.trim();
+const useTurso = tursoUrl && tursoToken;
 
 let db;
 
 if (useTurso) {
   // Conexión a Turso (producción o desarrollo con credenciales)
   console.log('🔌 Conectando a Turso...');
-  console.log('   URL:', process.env.TURSO_DATABASE_URL);
+  console.log('   URL:', tursoUrl);
   try {
     const client = createClient({
-      url: process.env.TURSO_DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN
+      url: tursoUrl,
+      authToken: tursoToken
     });
     db = new DbWrapper(client);
     console.log('✅ Conexión a Turso establecida');
