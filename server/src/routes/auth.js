@@ -28,12 +28,15 @@ router.post('/register', async (req, res) => {
     
     const result = await db.prepare('INSERT INTO users (name, password, is_admin) VALUES (?, ?, ?)').run(name, hashedPassword, isAdmin);
     
+    // Turso devuelve BigInt, convertir a número
+    const userId = Number(result.lastInsertRowid);
+    
     const today = new Date().toISOString().split('T')[0];
-    await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(result.lastInsertRowid, today);
+    await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, today);
     
-    const token = generateToken({ id: result.lastInsertRowid, name, isAdmin });
+    const token = generateToken({ id: userId, name, isAdmin });
     
-    res.json({ success: true, user: { id: result.lastInsertRowid, name, isAdmin }, token });
+    res.json({ success: true, user: { id: userId, name, isAdmin }, token });
   } catch (error) {
     console.error('Error en registro:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });

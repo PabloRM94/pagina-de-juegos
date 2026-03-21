@@ -57,7 +57,7 @@ router.post('/counter-types', authenticateToken, async (req, res) => {
       req.app.get('io').emit('counter-types-updated');
     }
     
-    res.json({ success: true, id: result.lastInsertRowid, name, icon, slug });
+    res.json({ success: true, id: Number(result.lastInsertRowid), name, icon, slug });
   } catch (error) {
     console.error('Error creando tipo de contador:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });
@@ -289,7 +289,7 @@ router.post('/checklist', authenticateToken, async (req, res) => {
       FROM checklist_items cl
       JOIN users u ON cl.created_by = u.id
       WHERE cl.id = ?
-    `).get(result.lastInsertRowid);
+    `).get(Number(result.lastInsertRowid));
     
     // Notificar a todos los clientes
     if (req.app.get('io')) {

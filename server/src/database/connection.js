@@ -38,7 +38,7 @@ class DbWrapper {
         return result.rows || [];
       } else if (mode === 'run') {
         return {
-          lastInsertRowid: result.lastInsertRowid,
+          lastInsertRowid: Number(result.lastInsertRowid) || 0,
           changes: result.rowsAffected
         };
       }
