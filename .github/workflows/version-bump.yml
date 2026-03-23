@@ -1,0 +1,67 @@
+name: Version Bump
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install semver
+      
+      - name: Bump version
+        id: version
+        run: |
+          # Leer versión actual
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "Versión actual: $CURRENT_VERSION"
+          
+          # Incrementar versión patch
+          NEW_VERSION=$(node -e "const semver = require('semver'); console.log(semver.inc('$CURRENT_VERSION', 'patch'))")
+          echo "Nueva versión: $NEW_VERSION"
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          
+          # Actualizar package.json raíz
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          
+          # Actualizar server/package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./server/package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('./server/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+      
+      - name: Commit and tag
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          git add package.json server/package.json
+          git commit -m "chore(release): bump version to ${{ steps.version.outputs.new_version }}"
+          
+          # Crear tag
+          git tag -a "v${{ steps.version.outputs.new_version }}" -m "Release v${{ steps.version.outputs.new_version }}"
+          
+          # Push con tags
+          git push origin master --tags
