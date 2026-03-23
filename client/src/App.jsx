@@ -219,6 +219,16 @@ export default function App() {
     };
   }, [refreshCounters]);
   
+  // === Handle session restored ===
+  useEffect(() => {
+    // Cuando termina de cargar y hay un token válido, redirigir al dashboard
+    if (!authLoading && token && user) {
+      if (view === VIEWS.LOGIN || view === VIEWS.REGISTER) {
+        setView(VIEWS.DASHBOARD);
+      }
+    }
+  }, [authLoading, token, user, view]);
+
   // === Handle game finished ===
   useEffect(() => {
     if (gameFinished && (view === VIEWS.GAME || view === VIEWS.ENCOUNTER_RESULT || view === VIEWS.GAME_LOBBY || view === VIEWS.HIDDEN)) {
@@ -361,6 +371,15 @@ export default function App() {
   };
   
   // === Render functions for different views ===
+  
+  // Mostrar spinner mientras carga la sesión restored
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-white text-xl">Cargando sesión...</div>
+      </div>
+    );
+  }
   
   // Login / Register views (no layout, no tabs)
   if (view === VIEWS.LOGIN) {

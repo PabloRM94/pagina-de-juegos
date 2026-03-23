@@ -78,6 +78,26 @@ router.post('/login', async (req, res) => {
 });
 
 /**
+ * GET /api/auth/validate
+ * Valida el token y devuelve los datos actuales del usuario
+ */
+router.get('/validate', authenticateToken, async (req, res) => {
+  try {
+    const user = await db.prepare('SELECT id, name, is_admin FROM users WHERE id = ?').get(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+    }
+    res.json({ 
+      success: true, 
+      user: { id: user.id, name: user.name, isAdmin: user.is_admin } 
+    });
+  } catch (error) {
+    console.error('Error validando token:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
  * POST /api/reset-password-direct
  * Cambia la contraseña directamente (sin email, solo username + nueva contraseña)
  */

@@ -3,6 +3,7 @@ export const ENDPOINTS = {
   // Auth
   REGISTER: '/api/register',
   LOGIN: '/api/login',
+  VALIDATE: '/api/validate',
   RESET_PASSWORD_DIRECT: '/api/reset-password-direct',
   
   // Trip

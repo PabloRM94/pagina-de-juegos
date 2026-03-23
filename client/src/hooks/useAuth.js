@@ -1,6 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import { api, setApiToken, ENDPOINTS } from '../api/index.js';
 
+// Keys para localStorage
+const STORAGE_KEYS = {
+  TOKEN: 'auth_token',
+  USER: 'auth_user',
+  GUEST: 'guest_session'
+};
+
 /**
  * Genera un nombre de invitado aleatorio
  */
@@ -24,25 +31,70 @@ const generateGuestAvatar = () => {
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Empezamos en true para evitar flash
   const [error, setError] = useState('');
   const [isGuest, setIsGuest] = useState(false);
   
-  // Verificar si hay una sesión de invitado guardada
-  useEffect(() => {
-    const savedGuest = localStorage.getItem('guest_session');
-    if (savedGuest) {
-      try {
-        const guestData = JSON.parse(savedGuest);
-        setUser(guestData.user);
-        setIsGuest(true);
-        // No hay token real para invitados, usamos uno falso
-        setToken('guest-token');
-      } catch (e) {
-        localStorage.removeItem('guest_session');
+  // Función para validar el token con el servidor
+  const validateToken = useCallback(async (tokenToValidate) => {
+    try {
+      const response = await api.get(ENDPOINTS.VALIDATE, {
+        headers: { Authorization: `Bearer ${tokenToValidate}` }
+      });
+      if (response.success) {
+        return { valid: true, user: response.user };
       }
+      return { valid: false, user: null };
+    } catch (err) {
+      console.error('Error validando token:', err);
+      return { valid: false, user: null };
     }
   }, []);
+  
+  // Verificar si hay una sesión guardada al iniciar
+  useEffect(() => {
+    const initializeAuth = async () => {
+      // 1. Verificar sesión de usuario registrado
+      const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
+      const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+      
+      if (savedToken && savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          // Revalidar con el servidor
+          const validation = await validateToken(savedToken);
+          
+          if (validation.valid) {
+            setToken(savedToken);
+            setUser(validation.user);
+          } else {
+            // Token inválido, limpiar
+            localStorage.removeItem(STORAGE_KEYS.TOKEN);
+            localStorage.removeItem(STORAGE_KEYS.USER);
+          }
+        } catch (e) {
+          localStorage.removeItem(STORAGE_KEYS.TOKEN);
+          localStorage.removeItem(STORAGE_KEYS.USER);
+        }
+      } else {
+        // 2. Verificar sesión de invitado
+        const savedGuest = localStorage.getItem(STORAGE_KEYS.GUEST);
+        if (savedGuest) {
+          try {
+            const guestData = JSON.parse(savedGuest);
+            setUser(guestData.user);
+            setIsGuest(true);
+            setToken('guest-token');
+          } catch (e) {
+            localStorage.removeItem(STORAGE_KEYS.GUEST);
+          }
+        }
+      }
+      setLoading(false);
+    };
+    
+    initializeAuth();
+  }, [validateToken]);
   
   // Actualizar cliente API cuando cambia el token
   useEffect(() => {
@@ -62,6 +114,9 @@ export function useAuth() {
       if (response.success) {
         setToken(response.token);
         setUser(response.user);
+        // Persistir en localStorage
+        localStorage.setItem(STORAGE_KEYS.TOKEN, response.token);
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response.user));
         return { success: true };
       } else {
         setError(response.error);
@@ -89,6 +144,9 @@ export function useAuth() {
       if (response.success) {
         setToken(response.token);
         setUser(response.user);
+        // Persistir en localStorage
+        localStorage.setItem(STORAGE_KEYS.TOKEN, response.token);
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response.user));
         return { success: true };
       } else {
         setError(response.error);
@@ -111,7 +169,9 @@ export function useAuth() {
     setUser(null);
     setError('');
     setIsGuest(false);
-    localStorage.removeItem('guest_session');
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    localStorage.removeItem(STORAGE_KEYS.GUEST);
   }, []);
 
   /**
@@ -140,7 +200,7 @@ export function useAuth() {
       setToken('guest-token');
       
       // Guardar sesión en localStorage (para persistencia simple)
-      localStorage.setItem('guest_session', JSON.stringify({
+      localStorage.setItem(STORAGE_KEYS.GUEST, JSON.stringify({
         user: guestUser
       }));
       
