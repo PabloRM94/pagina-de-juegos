@@ -322,12 +322,30 @@ router.get('/users', authenticateToken, async (req, res) => {
  */
 router.get('/checklist', authenticateToken, async (req, res) => {
   try {
-    const items = await db.prepare(`
-      SELECT cl.*, u.name as created_by_name
-      FROM checklist_items cl
-      JOIN users u ON cl.created_by = u.id
-      ORDER BY cl.created_at DESC
-    `).all();
+    // Primero intentar con JOIN
+    let items;
+    try {
+      items = await db.prepare(`
+        SELECT cl.*, u.name as created_by_name
+        FROM checklist_items cl
+        JOIN users u ON cl.created_by = u.id
+        ORDER BY cl.created_at DESC
+      `).all();
+    } catch (joinError) {
+      // Si falla el JOIN, intentar sin él
+      console.log('[checklist] JOIN failed, trying without it:', joinError.message);
+      items = await db.prepare(`
+        SELECT cl.*, null as created_by_name
+        FROM checklist_items cl
+        ORDER BY cl.created_at DESC
+      `).all();
+    }
+    
+    // Si no hay items, devolver array vacío
+    if (!items) {
+      items = [];
+    }
+    
     res.json({ success: true, items });
   } catch (error) {
     console.error('Error obteniendo checklist:', error);

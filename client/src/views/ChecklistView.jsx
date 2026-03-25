@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api, ENDPOINTS } from '../api/index.js';
 import { useAuth } from '../hooks/index.js';
 import { getSocket } from '../hooks/useSocket.js';
@@ -19,16 +19,46 @@ export function ChecklistView({ tripConfig, onNavigate }) {
   const [showNewSectionInput, setShowNewSectionInput] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [sectionToDelete, setSectionToDelete] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
   
   const isAdminUser = user?.isAdmin === 1 || user?.isAdmin === true;
+  
+  // Función para cargar datos
+  const loadData = useCallback(async () => {
+    console.log('[ChecklistView] loadData called, token:', !!token);
+    try {
+      const [itemsRes, sectionsRes] = await Promise.all([
+        api.get(ENDPOINTS.CHECKLIST),
+        api.get(ENDPOINTS.CHECKLIST_SECTIONS)
+      ]);
+      
+      console.log('[ChecklistView] itemsRes:', itemsRes);
+      console.log('[ChecklistView] sectionsRes:', sectionsRes);
+      
+      if (itemsRes.success) {
+        setItems(itemsRes.items);
+      }
+      
+      if (sectionsRes.success) {
+        setSections(sectionsRes.sections);
+        // Expandir todas las secciones por defecto
+        const expanded = {};
+        sectionsRes.sections.forEach(s => {
+          expanded[s.name] = true;
+        });
+        setExpandedSections(expanded);
+      }
+    } catch (err) {
+      console.error('[ChecklistView] Error loading checklist:', err);
+    }
+  }, [token]);
   
   // Cargar datos cuando cambia el token
   useEffect(() => {
     if (token) {
+      console.log('[ChecklistView] Token available, loading data...');
       loadData();
     }
-  }, [token]);
+  }, [token, loadData]);
   
   // Escuchar actualizaciones del checklist via socket
   useEffect(() => {
@@ -45,32 +75,7 @@ export function ChecklistView({ tripConfig, onNavigate }) {
       socket.off('checklist-updated', handleChecklistUpdated);
     };
   }, []);
-  
-  const loadData = async () => {
-    try {
-      const [itemsRes, sectionsRes] = await Promise.all([
-        api.get(ENDPOINTS.CHECKLIST),
-        api.get(ENDPOINTS.CHECKLIST_SECTIONS)
-      ]);
-      
-      if (itemsRes.success) {
-        setItems(itemsRes.items);
-      }
-      
-      if (sectionsRes.success) {
-        setSections(sectionsRes.sections);
-        // Expandir todas las secciones por defecto
-        const expanded = {};
-        sectionsRes.sections.forEach(s => {
-          expanded[s.name] = true;
-        });
-        setExpandedSections(expanded);
-      }
-    } catch (err) {
-      console.error('Error loading checklist:', err);
-    }
-  };
-  
+
   // Agrupar items por sección
   const itemsBySection = useMemo(() => {
     const grouped = {};
