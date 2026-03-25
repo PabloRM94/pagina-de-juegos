@@ -15,6 +15,7 @@ export function TimesUpRoundResultView({ onNavigate }) {
   const initialTeams = JSON.parse(sessionStorage.getItem('timesup_teams') || '[]');
   const storedConfig = JSON.parse(sessionStorage.getItem('timesup_config') || '{}');
   const storedRoundData = JSON.parse(sessionStorage.getItem('timesup_roundData') || '{}');
+  const storedHost = sessionStorage.getItem('timesup_host') || '';
   
   const [roomId] = useState(storedRoomId);
   const [teams, setTeams] = useState(initialTeams);
@@ -31,6 +32,14 @@ export function TimesUpRoundResultView({ onNavigate }) {
     return 3;
   });
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+
+  // Determinar si es host después de que el socket esté disponible
+  useEffect(() => {
+    if (socket) {
+      setIsHost(storedHost === socket.id);
+    }
+  }, [socket, storedHost]);
 
   // Calcular leaderboard desde teams - solo cuando teams cambia
   useEffect(() => {
@@ -227,8 +236,8 @@ export function TimesUpRoundResultView({ onNavigate }) {
           </div>
         )}
 
-        {/* Botón siguiente ronda */}
-        {nextRound <= totalRounds && (
+        {/* Botón siguiente ronda (solo host) */}
+        {nextRound <= totalRounds && isHost && (
           <button
             onClick={handleNextRound}
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-4 rounded-lg transition-colors text-lg"
@@ -237,8 +246,8 @@ export function TimesUpRoundResultView({ onNavigate }) {
           </button>
         )}
 
-        {/* Botón ver resultados finales (si es la última ronda) */}
-        {nextRound > totalRounds && (
+        {/* Botón ver resultados finales (solo host si es la última ronda) */}
+        {nextRound > totalRounds && isHost && (
           <button
             onClick={handleNextRound}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-lg transition-colors text-lg"
@@ -247,9 +256,10 @@ export function TimesUpRoundResultView({ onNavigate }) {
           </button>
         )}
 
-        {(nextRound > totalRounds) && (
+        {/* Mensaje para no-host */}
+        {(!isHost || (nextRound <= totalRounds && isHost)) && (
           <div className="text-center text-gray-500">
-            <p>Esperando que el host inicie la siguiente ronda...</p>
+            <p>{isHost ? 'Inicia la siguiente ronda cuando todos estén listos' : 'Esperando que el host inicie la siguiente ronda...'}</p>
           </div>
         )}
       </div>

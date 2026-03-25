@@ -758,23 +758,42 @@ export function setupSocketHandlers(io) {
         if (areAllWordsGuessed(room.timesup)) {
           console.log('[timesup-start-turn] Sin palabras restantes - fin de ronda');
           
-          // Obtener info del primer jugador del equipo que empieza la próxima ronda
-          room.timesup = startNewRound(room.timesup);
-          const firstTeam = room.timesup.teams[room.timesup.currentTeamTurn];
-          const firstPlayerId = firstTeam?.players[0];
+          // NO avanzamos a la siguiente ronda todavía - esperamos a que el host haga click
+          // Obtener scores actuales
+          const roundScores = room.timesup.roundScores[room.timesup.currentRound];
+          const leaderboard = getLeaderboard(room.timesup);
+          const isLastRound = room.timesup.currentRound >= room.timesup.config.totalRounds;
           
-          io.emit('timesup-next-round', {
-            roomId: room.id,
-            round: room.timesup.currentRound,
-            roundName: ROUND_NAMES[room.timesup.currentRound],
-            totalWords: room.timesup.shuffledWords.length,
-            wordsUsed: room.timesup.wordsUsed.length,
-            leaderboard: getLeaderboard(room.timesup),
-            scores: room.timesup.roundScores[room.timesup.currentRound],
-            startingTeam: room.timesup.startingTeam,
-            firstPlayerId: firstPlayerId,
-            isLastRound: room.timesup.currentRound >= room.timesup.config.totalRounds
-          });
+          if (isLastRound) {
+            // Fin del juego
+            room.timesup.state = 'finished';
+            const winner = getWinner(room.timesup);
+            const finalLeaderboard = getLeaderboard(room.timesup);
+            
+            io.emit('timesup-game-ended', {
+              roomId: room.id,
+              winner: winner ? { id: winner.id, name: winner.name } : null,
+              leaderboard: finalLeaderboard,
+              roundScores: room.timesup.roundScores,
+              finalScores: room.timesup.teams.map((t, i) => ({ 
+                teamId: i, 
+                teamName: t.name, 
+                score: t.score 
+              }))
+            });
+          } else {
+            // Emitir fin de ronda para mostrar resultados
+            io.emit('timesup-round-ended', {
+              roomId: room.id,
+              round: room.timesup.currentRound,
+              roundName: ROUND_NAMES[room.timesup.currentRound],
+              totalWords: room.timesup.shuffledWords.length,
+              wordsUsed: room.timesup.wordsUsed.length,
+              leaderboard: leaderboard,
+              scores: roundScores,
+              isLastRound: isLastRound
+            });
+          }
           
           callback({ success: false, error: 'Ronda terminada', roundEnded: true });
           return;
@@ -843,24 +862,44 @@ export function setupSocketHandlers(io) {
         clearTimeout(room.timesup.currentTurnTimer);
         room.timesup.turnActive = false;
         
-        // Obtener info del primer jugador del equipo que empieza la próxima ronda
-        room.timesup = startNewRound(room.timesup);
-        const firstTeam = room.timesup.teams[room.timesup.currentTeamTurn];
-        const firstPlayerId = firstTeam?.players[0];
+        // NO avanzamos a la siguiente ronda todavía - esperamos a que el host haga click
+        // Emitir fin de ronda para mostrar resultados
+        const roundScores = room.timesup.roundScores[room.timesup.currentRound];
+        const leaderboard = getLeaderboard(room.timesup);
         
-        // Emitir fin de ronda
-        io.emit('timesup-next-round', {
-          roomId: room.id,
-          round: room.timesup.currentRound,
-          roundName: ROUND_NAMES[room.timesup.currentRound],
-          totalWords: room.timesup.shuffledWords.length,
-          wordsUsed: room.timesup.wordsUsed.length,
-          leaderboard: getLeaderboard(room.timesup),
-          scores: room.timesup.roundScores[room.timesup.currentRound],
-          startingTeam: room.timesup.startingTeam,
-          firstPlayerId: firstPlayerId,
-          isLastRound: room.timesup.currentRound >= room.timesup.config.totalRounds
-        });
+        // Verificar si es la última ronda
+        const isLastRound = room.timesup.currentRound >= room.timesup.config.totalRounds;
+        
+        if (isLastRound) {
+          // Fin del juego
+          room.timesup.state = 'finished';
+          const winner = getWinner(room.timesup);
+          const finalLeaderboard = getLeaderboard(room.timesup);
+          
+          io.emit('timesup-game-ended', {
+            roomId: room.id,
+            winner: winner ? { id: winner.id, name: winner.name } : null,
+            leaderboard: finalLeaderboard,
+            roundScores: room.timesup.roundScores,
+            finalScores: room.timesup.teams.map((t, i) => ({ 
+              teamId: i, 
+              teamName: t.name, 
+              score: t.score 
+            }))
+          });
+        } else {
+          // Emitir fin de ronda - el cliente mostrará la pantalla de resultados
+          io.emit('timesup-round-ended', {
+            roomId: room.id,
+            round: room.timesup.currentRound,
+            roundName: ROUND_NAMES[room.timesup.currentRound],
+            totalWords: room.timesup.shuffledWords.length,
+            wordsUsed: room.timesup.wordsUsed.length,
+            leaderboard: leaderboard,
+            scores: roundScores,
+            isLastRound: isLastRound
+          });
+        }
         
         callback({ success: true, score: currentScore, roundEnded: true });
         return;
@@ -1022,6 +1061,12 @@ export function setupSocketHandlers(io) {
         return;
       }
       
+      // Verificar que solo el host puede terminar la ronda manualmente
+      if (room.host !== socket.id) {
+        callback({ success: false, error: 'Solo el host puede terminar la ronda' });
+        return;
+      }
+      
       console.log('[timesup-end-round] Fin de ronda solicitado', { 
         currentRound: room.timesup.currentRound,
         totalRounds: room.timesup.config.totalRounds,
@@ -1099,24 +1144,103 @@ export function setupSocketHandlers(io) {
       }
       
       if (room.host !== socket.id) {
-        callback({ success: false, error: 'Solo el host puede modificar la configuración' });
+        callback({ success: false, error: 'Solo el host puede actualizar la configuración' });
         return;
       }
       
-      if (roundNumber < 1 || roundNumber > 4) {
-        callback({ success: false, error: 'Número de ronda inválido' });
-        return;
+      if (!room.timesup.roundConfig) {
+        room.timesup.roundConfig = {};
       }
-      
-      room.timesup = updateRoundConfig(room.timesup, roundNumber, config);
+      room.timesup.roundConfig[roundNumber] = config;
       
       io.emit('timesup-round-config-updated', {
         roomId: room.id,
         roundNumber,
-        config: room.timesup.roundConfig[roundNumber]
+        config
       });
       
       callback({ success: true, config: room.timesup.roundConfig[roundNumber] });
+    });
+
+    // ==================== TIME'S UP - REJOIN ====================
+    socket.on('timesup-rejoin', (data, callback) => {
+      const { roomId, playerId } = data;
+      const room = timesupRooms.get(roomId.toUpperCase());
+      
+      if (!room || room.gameType !== 'timesup') {
+        callback({ success: false, error: 'Sala no encontrada' });
+        return;
+      }
+      
+      // Verificar que el jugador estaba en la sala
+      const player = room.timesup.teams.flatMap(t => t.players).find(p => p.id === playerId);
+      if (!player) {
+        callback({ success: false, error: 'Jugador no encontrado en la sala' });
+        return;
+      }
+      
+      console.log('[timesup-rejoin] Jugador re-conectado:', playerId, 'Sala:', roomId);
+      
+      callback({ 
+        success: true, 
+        room: {
+          id: room.id,
+          state: room.timesup.state,
+          currentRound: room.timesup.currentRound,
+          teams: room.timesup.teams,
+          config: room.timesup.config
+        }
+      });
+    });
+
+    // ==================== ESCONDITE - REJOIN ====================
+    socket.on('rejoin-room', (data, callback) => {
+      const { roomId } = data;
+      const room = rooms.get(roomId.toUpperCase());
+      
+      if (!room) {
+        callback({ success: false, error: 'Sala no encontrada' });
+        return;
+      }
+      
+      const player = room.players.find(p => p.id === socket.id);
+      if (!player) {
+        callback({ success: false, error: 'Jugador no encontrado en la sala' });
+        return;
+      }
+      
+      console.log('[rejoin-room] Jugador re-conectado:', socket.id, 'Sala:', roomId);
+      
+      callback({ success: true, room });
+    });
+
+    // ==================== APUESTAS - REJOIN ====================
+    socket.on('apuestas-rejoin', (data, callback) => {
+      const { roomId, playerId } = data;
+      const room = apuestasRooms.get(roomId.toUpperCase());
+      
+      if (!room) {
+        callback({ success: false, error: 'Sala no encontrada' });
+        return;
+      }
+      
+      const player = room.players.find(p => p.id === playerId);
+      if (!player) {
+        callback({ success: false, error: 'Jugador no encontrado en la sala' });
+        return;
+      }
+      
+      console.log('[apuestas-rejoin] Jugador re-conectado:', playerId, 'Sala:', roomId);
+      
+      callback({ 
+        success: true, 
+        room: {
+          id: room.id,
+          state: room.state,
+          config: room.config,
+          currentRound: room.currentRound
+        }
+      });
     });
 
     // ==================== APUESTAS - REGISTRAR HANDLERS ====================

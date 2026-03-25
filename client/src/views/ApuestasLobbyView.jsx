@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getSocket } from '../hooks/useSocket.js';
 import Avatar from '../components/Avatar.jsx';
+import { CopyButton } from '../components/index.js';
 import { VIEWS } from '../constants/views.js';
 
 export default function ApuestasLobbyView({ onNavigate }) {
@@ -167,7 +168,10 @@ export default function ApuestasLobbyView({ onNavigate }) {
           {/* Código de sala */}
           <div className="bg-gray-800 rounded-lg p-4 mb-6 text-center">
             <p className="text-gray-400 text-sm">Código de sala</p>
-            <p className="text-3xl font-bold text-yellow-400 tracking-widest">{room.id}</p>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <p className="text-3xl font-bold text-yellow-400 tracking-widest">{room.id}</p>
+              <CopyButton text={room.id} />
+            </div>
             <p className="text-gray-500 text-xs mt-2">Comparte este código con otros jugadores</p>
           </div>
 

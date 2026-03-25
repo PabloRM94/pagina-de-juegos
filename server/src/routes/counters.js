@@ -10,17 +10,36 @@ const router = express.Router();
  */
 router.get('/counter-types', authenticateToken, async (req, res) => {
   try {
-    const fixedCounters = [
-      { id: 'cervezas', name: 'Cervezas', icon: '🍺', slug: 'cervezas', is_fixed: true },
-      { id: 'banos_piscina', name: 'Baños Piscina', icon: '🚿', slug: 'banos_piscina', is_fixed: true },
-      { id: 'agua_gas', name: 'Agua con Gas', icon: '💧', slug: 'agua_gas', is_fixed: true },
-      { id: 'turbolatas', name: 'Turbolatas', icon: '🥫', slug: 'turbolatas', is_fixed: true }
-    ];
+    console.log('[GET counter-types] Request received');
     
-    const customCounters = await db.prepare('SELECT * FROM counter_types ORDER BY name').all();
+    // Primero verificar si ya hay contadores en la DB
+    const dbCounters = await db.prepare('SELECT * FROM counter_types ORDER BY name').all();
+    console.log('[GET counter-types] Contadores en DB:', dbCounters);
     
-    const allTypes = [...fixedCounters, ...customCounters.map(c => ({ ...c, is_fixed: false }))];
+    // Si no hay contadores en DB, migrar los fijos
+    if (dbCounters.length === 0) {
+      console.log('[GET counter-types] Migrando contadores fijos a la DB...');
+      const fixedCounters = [
+        { name: 'Cervezas', icon: '🍺', slug: 'cervezas' },
+        { name: 'Baños Piscina', icon: '🚿', slug: 'banos_piscina' },
+        { name: 'Agua con Gas', icon: '💧', slug: 'agua_gas' },
+        { name: 'Turbolatas', icon: '🥫', slug: 'turbolatas' }
+      ];
+      
+      for (const c of fixedCounters) {
+        await db.prepare('INSERT INTO counter_types (name, icon, slug) VALUES (?, ?, ?)').run(c.name, c.icon, c.slug);
+      }
+      
+      // Recargar desde DB
+      const newDbCounters = await db.prepare('SELECT * FROM counter_types ORDER BY name').all();
+      console.log('[GET counter-types] Después de migrate:', newDbCounters);
+      const allTypes = newDbCounters.map(c => ({ ...c, is_fixed: false }));
+      res.json({ success: true, counterTypes: allTypes });
+      return;
+    }
     
+    const allTypes = dbCounters.map(c => ({ ...c, is_fixed: false }));
+    console.log('[GET counter-types] Enviando:', allTypes);
     res.json({ success: true, counterTypes: allTypes });
   } catch (error) {
     console.error('Error obteniendo tipos de contadores:', error);
@@ -76,14 +95,23 @@ router.delete('/counter-types/:id', authenticateToken, async (req, res) => {
     
     const id = parseInt(req.params.id, 10);
     
+    console.log('[DELETE counter-type] id:', id, 'type:', typeof id);
+    
     if (isNaN(id)) {
       return res.status(400).json({ success: false, error: 'ID inválido' });
     }
     
+    // Primero ver qué hay en la DB
+    const allCounters = await db.prepare('SELECT * FROM counter_types').all();
+    console.log('[DELETE counter-type] Todos los contadores en DB:', allCounters);
+    
     const counter = await db.prepare('SELECT * FROM counter_types WHERE id = ?').get(id);
     if (!counter) {
+      console.log('[DELETE counter-type] No encontrado con id:', id);
       return res.status(404).json({ success: false, error: 'Contador no encontrado' });
     }
+    
+    console.log('[DELETE counter-type] Contador a eliminar:', counter);
     
     await db.prepare('DELETE FROM counter_types WHERE id = ?').run(id);
     
@@ -94,6 +122,59 @@ router.delete('/counter-types/:id', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error eliminando tipo de contador:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * PUT /api/counter-types/:id
+ * Actualiza un tipo de contador (solo admin)
+ */
+router.put('/counter-types/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ success: false, error: 'Solo el admin puede editar contadores' });
+    }
+    
+    const id = parseInt(req.params.id, 10);
+    
+    console.log('[PUT counter-type] id:', id, 'body:', req.body);
+    
+    if (isNaN(id)) {
+      return res.status(400).json({ success: false, error: 'ID inválido' });
+    }
+    
+    const { name, icon } = req.body;
+    
+    if (!name || !icon) {
+      return res.status(400).json({ success: false, error: 'Nombre e icono son requeridos' });
+    }
+    
+    const counter = await db.prepare('SELECT * FROM counter_types WHERE id = ?').get(id);
+    if (!counter) {
+      console.log('[PUT counter-type] No encontrado con id:', id);
+      return res.status(404).json({ success: false, error: 'Contador no encontrado' });
+    }
+    
+    console.log('[PUT counter-type] Contador a actualizar:', counter);
+    
+    const newSlug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    
+    // Verificar que el nuevo nombre no esté en uso por otro contador
+    const existing = await db.prepare('SELECT id FROM counter_types WHERE slug = ? AND id != ?').get(newSlug, id);
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Ya existe un contador con ese nombre' });
+    }
+    
+    await db.prepare('UPDATE counter_types SET name = ?, icon = ?, slug = ? WHERE id = ?').run(name, icon, newSlug, id);
+    
+    if (req.app.get('io')) {
+      req.app.get('io').emit('counter-types-updated');
+    }
+    
+    res.json({ success: true, id, name, icon, slug: newSlug });
+  } catch (error) {
+    console.error('Error editando tipo de contador:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });
   }
 });
@@ -241,12 +322,30 @@ router.get('/users', authenticateToken, async (req, res) => {
  */
 router.get('/checklist', authenticateToken, async (req, res) => {
   try {
-    const items = await db.prepare(`
-      SELECT cl.*, u.name as created_by_name
-      FROM checklist_items cl
-      JOIN users u ON cl.created_by = u.id
-      ORDER BY cl.created_at DESC
-    `).all();
+    // Primero intentar con JOIN
+    let items;
+    try {
+      items = await db.prepare(`
+        SELECT cl.*, u.name as created_by_name
+        FROM checklist_items cl
+        JOIN users u ON cl.created_by = u.id
+        ORDER BY cl.created_at DESC
+      `).all();
+    } catch (joinError) {
+      // Si falla el JOIN, intentar sin él
+      console.log('[checklist] JOIN failed, trying without it:', joinError.message);
+      items = await db.prepare(`
+        SELECT cl.*, null as created_by_name
+        FROM checklist_items cl
+        ORDER BY cl.created_at DESC
+      `).all();
+    }
+    
+    // Si no hay items, devolver array vacío
+    if (!items) {
+      items = [];
+    }
+    
     res.json({ success: true, items });
   } catch (error) {
     console.error('Error obteniendo checklist:', error);
@@ -359,6 +458,96 @@ router.delete('/checklist/:id', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error eliminando item:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+// ============ SECCIONES DEL CHECKLIST ============
+
+/**
+ * GET /api/checklist/sections
+ * Obtiene todas las secciones del checklist
+ */
+router.get('/checklist/sections', authenticateToken, async (req, res) => {
+  try {
+    const sections = await db.prepare(`
+      SELECT cs.*, u.name as created_by_name
+      FROM checklist_sections cs
+      JOIN users u ON cs.created_by = u.id
+      ORDER BY cs.created_at ASC
+    `).all();
+    res.json({ success: true, sections });
+  } catch (error) {
+    console.error('Error obteniendo secciones:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * POST /api/checklist/sections
+ * Crea una nueva sección (cualquier usuario)
+ */
+router.post('/checklist/sections', authenticateToken, async (req, res) => {
+  try {
+    const { name } = req.body;
+    const userId = req.user.id;
+    
+    if (!name || name.trim().length === 0) {
+      return res.status(400).json({ success: false, error: 'El nombre de la sección es requerido' });
+    }
+    
+    const result = await db.prepare(
+      'INSERT INTO checklist_sections (name, created_by) VALUES (?, ?)'
+    ).run(name.trim(), userId);
+    
+    // Notificar a todos
+    if (req.app.get('io')) {
+      req.app.get('io').emit('checklist-updated');
+    }
+    
+    res.json({ success: true, id: Number(result.lastInsertRowid), name: name.trim() });
+  } catch (error) {
+    console.error('Error creando sección:', error);
+    res.status(500).json({ success: false, error: 'Error en el servidor' });
+  }
+});
+
+/**
+ * DELETE /api/checklist/sections/:id
+ * Elimina una sección solo si no tiene tareas asociadas
+ */
+router.delete('/checklist/sections/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const section = await db.prepare('SELECT * FROM checklist_sections WHERE id = ?').get(id);
+    if (!section) {
+      return res.status(404).json({ success: false, error: 'Sección no encontrada' });
+    }
+    
+    // Verificar si hay tareas en esta sección
+    const itemsInSection = await db.prepare(
+      'SELECT COUNT(*) as count FROM checklist_items WHERE section = ?'
+    ).get(section.name);
+    
+    if (itemsInSection.count > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No se puede eliminar la sección porque tiene tareas asociadas' 
+      });
+    }
+    
+    // Eliminar la sección
+    await db.prepare('DELETE FROM checklist_sections WHERE id = ?').run(id);
+    
+    // Notificar a todos
+    if (req.app.get('io')) {
+      req.app.get('io').emit('checklist-updated');
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error eliminando sección:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });
   }
 });

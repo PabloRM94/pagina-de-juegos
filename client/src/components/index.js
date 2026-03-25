@@ -10,3 +10,4 @@ export { AppLayout } from './AppLayout.jsx';
 export { LogoutModal } from './LogoutModal.jsx';
 export { Checklist } from './Checklist.jsx';
 export { ConfirmModal } from './ConfirmModal.jsx';
+export { CopyButton } from './CopyButton.jsx';

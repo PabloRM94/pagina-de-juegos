@@ -11,6 +11,7 @@ import {
   RegisterView,
   WaitingView,
   DashboardView,
+  ChecklistView,
   GamesView,
   AdminView,
   GameView,
@@ -316,9 +317,24 @@ export default function App() {
   };
   
   const handleDeleteCounterType = async (id) => {
+    console.log('[Admin] Eliminando contador id:', id);
     const result = await api.delete(`${ENDPOINTS.COUNTER_TYPES}/${id}`);
+    console.log('[Admin] Result delete:', result);
     if (result.success) {
       const typesRes = await api.get(ENDPOINTS.COUNTER_TYPES);
+      console.log('[Admin] Reload counter types:', typesRes);
+      if (typesRes.success) setCounterTypes(typesRes.counterTypes);
+    }
+    return result;
+  };
+  
+  const handleUpdateCounterType = async (id, name, icon) => {
+    console.log('[Admin] Actualizando contador id:', id, 'name:', name, 'icon:', icon);
+    const result = await api.put(`${ENDPOINTS.COUNTER_TYPES}/${id}`, { name, icon });
+    console.log('[Admin] Result update:', result);
+    if (result.success) {
+      const typesRes = await api.get(ENDPOINTS.COUNTER_TYPES);
+      console.log('[Admin] Reload counter types:', typesRes);
       if (typesRes.success) setCounterTypes(typesRes.counterTypes);
     }
     return result;
@@ -353,6 +369,9 @@ export default function App() {
   
   // === Handle navigation from tabs ===
   const handleTabNavigate = (targetView) => {
+    // Scroll to top en móvil para que el contenido siempre aparezca desde el inicio
+    window.scrollTo(0, 0);
+    
     if (room && targetView !== VIEWS.GAME && targetView !== VIEWS.GAME_LOBBY && targetView !== VIEWS.HIDDEN) {
       leaveRoom();
     }
@@ -463,10 +482,6 @@ export default function App() {
           user={user}
           onConfigUpdate={handleConfigUpdate}
           onNavigateToDashboard={() => setView(VIEWS.DASHBOARD)}
-          checklist={checklist}
-          onAddChecklistItem={addChecklistItem}
-          onToggleChecklistItem={toggleChecklistItem}
-          onDeleteChecklistItem={deleteChecklistItem}
           onUpdateUserName={async (userId, newName) => {
             const result = await updateUserName(userId, newName);
             if (result.success) {
@@ -505,10 +520,6 @@ export default function App() {
           onTriggerTurbo={handleTriggerTurbo}
           onConfirmTurbo={handleConfirmTurbo}
           onCancelTurbo={handleCancelTurbo}
-          checklist={checklist}
-          onAddChecklistItem={addChecklistItem}
-          onToggleChecklistItem={toggleChecklistItem}
-          onDeleteChecklistItem={deleteChecklistItem}
           onUpdateUserName={async (userId, newName) => {
             const result = await updateUserName(userId, newName);
             if (result.success) {
@@ -628,6 +639,28 @@ export default function App() {
     );
   }
   
+  // Checklist View
+  if (view === VIEWS.CHECKLIST) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <ChecklistView
+          tripConfig={tripConfig}
+        />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+  
   // Stats View
   if (view === VIEWS.STATS) {
     return (
@@ -674,6 +707,7 @@ export default function App() {
           onCancelTurbo={handleCancelTurbo}
           onConfigTurbo={handleConfigTurbo}
           onCreateCounterType={handleCreateCounterType}
+          onUpdateCounterType={handleUpdateCounterType}
           onDeleteCounterType={handleDeleteCounterType}
           onNavigateToWaiting={() => setView(VIEWS.WAITING)}
         />

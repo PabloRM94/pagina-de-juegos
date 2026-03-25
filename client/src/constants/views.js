@@ -6,6 +6,7 @@ export const VIEWS = {
   WAITING: 'waiting',
   DASHBOARD: 'dashboard',
   GAMES: 'games',
+  CHECKLIST: 'checklist',
   GAME: 'game',
   GAME_LOBBY: 'game-lobby',
   HIDDEN: 'hidden',

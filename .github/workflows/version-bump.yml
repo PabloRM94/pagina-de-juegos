@@ -5,9 +5,15 @@ on:
     branches:
       - master
 
+permissions:
+  contents: write
+
 jobs:
   bump-version:
     runs-on: ubuntu-latest
+    
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
       - name: Checkout code
@@ -15,11 +21,12 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          ref: master
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
       
       - name: Install dependencies
         run: npm install semver
@@ -51,13 +58,27 @@ jobs:
             pkg.version = '$NEW_VERSION';
             fs.writeFileSync('./server/package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-      
+          
+          # Actualizar client/package.json
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('./client/package.json', 'utf8'));
+            pkg.version = '$NEW_VERSION';
+            fs.writeFileSync('./client/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          
+          # Actualizar client/src/constants/appVersion.js con la versión
+          cat > client/src/constants/appVersion.js << EOF
+          // Auto-generado por version-bump workflow
+          export const APP_VERSION = '$NEW_VERSION';
+          EOF
+       
       - name: Commit and tag
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           
-          git add package.json server/package.json
+          git add package.json server/package.json client/package.json client/src/constants/appVersion.js
           git commit -m "chore(release): bump version to ${{ steps.version.outputs.new_version }}"
           
           # Crear tag

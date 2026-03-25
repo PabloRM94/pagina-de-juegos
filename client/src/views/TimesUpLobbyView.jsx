@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSocket } from '../hooks/index.js';
+import { CopyButton } from '../components/index.js';
 import { VIEWS } from '../constants/index.js';
 
 /**
@@ -45,7 +46,8 @@ export function TimesUpLobbyView({ onNavigate }) {
       // El host ya está creado en la sala, no necesita unirse
       setRoomId(result.roomId);
       sessionStorage.setItem('timesup_roomId', result.roomId);
-      sessionStorage.setItem('timesup_host', socket.id); // Guardar que somos host
+      sessionStorage.setItem('timesup_host', socket.id);
+      sessionStorage.setItem('timesup_playerId', socket.id); // Guardar playerId para rejoin
       setInRoom(true);
       setIsHost(true);
       setPlayers([{ id: socket.id, name: playerName, isHost: true }]);
@@ -96,7 +98,8 @@ export function TimesUpLobbyView({ onNavigate }) {
       setInRoom(true);
       setRoomId(normalizedRoomId);
       sessionStorage.setItem('timesup_roomId', normalizedRoomId);
-      sessionStorage.setItem('timesup_host', result.room.host); // Guardar el host de la sala
+      sessionStorage.setItem('timesup_host', result.room.host);
+      sessionStorage.setItem('timesup_playerId', socket.id); // Guardar playerId para rejoin
       console.log('Guardado en sessionStorage:', normalizedRoomId);
       setPlayers(result.room.players.map(p => ({ 
         id: p.id, 
@@ -340,7 +343,10 @@ export function TimesUpLobbyView({ onNavigate }) {
             {/* Código de sala */}
             <div className="bg-indigo-500/20 rounded-2xl p-4 border border-indigo-500/50 text-center">
               <p className="text-gray-400 text-sm">Código de sala</p>
-              <p className="text-3xl font-bold text-indigo-400 tracking-wider">{roomId}</p>
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <p className="text-3xl font-bold text-indigo-400 tracking-wider">{roomId}</p>
+                <CopyButton text={roomId} />
+              </div>
               <p className="text-gray-500 text-xs mt-2">Compartilo con tus amigos</p>
             </div>
 

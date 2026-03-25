@@ -3,7 +3,8 @@ import {
   Card,
   Avatar,
   StatusBadge,
-  AvatarSelector
+  AvatarSelector,
+  CopyButton
 } from '../components/index.js';
 import { getAvatarSeed, getMyAvatarUrl, getPlayerAvatarUrl } from '../utils/avatar.js';
 import { VIEWS } from '../constants/index.js';
@@ -166,7 +167,10 @@ export function GameView({
             <Card>
               <div className="text-center mb-4">
                 <p className="text-gray-400">Sala</p>
-                <div className="room-code-display">{room.id}</div>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="room-code-display">{room.id}</div>
+                  <CopyButton text={room.id} />
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <Avatar

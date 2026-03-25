@@ -26,6 +26,7 @@ export function TabNavigation({
 
   const tabs = [
     { id: VIEWS.DASHBOARD, label: 'Dashboard', icon: '🏠' },
+    { id: VIEWS.CHECKLIST, label: 'Checklist', icon: '✅' },
     { id: VIEWS.GAMES, label: 'Juegos', icon: '🎮' },
     { id: VIEWS.STATS, label: 'Estadísticas', icon: '📊' },
   ];
