@@ -1,6 +1,6 @@
 {
   "name": "game-escondite",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Juego del Escondite - Encuentra a tus amigos y ganá",
   "scripts": {
     "start": "cd server && npm start",
@@ -12,5 +12,8 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "semver": "^7.7.4"
   }
 }
