@@ -365,6 +365,9 @@ export default function App() {
   
   // === Handle navigation from tabs ===
   const handleTabNavigate = (targetView) => {
+    // Scroll to top en móvil para que el contenido siempre aparezca desde el inicio
+    window.scrollTo(0, 0);
+    
     if (room && targetView !== VIEWS.GAME && targetView !== VIEWS.GAME_LOBBY && targetView !== VIEWS.HIDDEN) {
       leaveRoom();
     }
