@@ -25,6 +25,13 @@ const GAMES = [
     icon: '🎯',
     description: 'Cronómetro de precisión',
     view: VIEWS.APUESTAS_LOBBY
+  },
+  {
+    id: 'beerpong',
+    name: 'BeerPong',
+    icon: '🏆',
+    description: 'Torneo de beerpong',
+    view: VIEWS.BEERPONG_LOBBY
   }
 ];
 

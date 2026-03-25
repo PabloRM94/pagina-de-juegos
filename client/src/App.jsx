@@ -28,7 +28,11 @@ import {
   ApuestasConfigView,
   ApuestasPlayView,
   ApuestasResultView,
-  ApuestasFinalView
+  ApuestasFinalView,
+  BeerpongLobbyView,
+  BeerpongSetupView,
+  BeerpongBracketView,
+  BeerpongFinalView
 } from './views/index.js';
 
 import { AppLayout, ConnectionStatus, LogoutModal } from './components/index.js';
@@ -535,6 +539,86 @@ export default function App() {
         <GamesView
           onNavigate={handleTabNavigate}
         />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+
+  // Beerpong Lobby
+  if (view === VIEWS.BEERPONG_LOBBY) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <BeerpongLobbyView onNavigate={handleTabNavigate} />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+
+  // Beerpong Setup
+  if (view === VIEWS.BEERPONG_SETUP) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <BeerpongSetupView onNavigate={handleTabNavigate} />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+
+  // Beerpong Bracket
+  if (view === VIEWS.BEERPONG_BRACKET) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <BeerpongBracketView onNavigate={handleTabNavigate} />
+        <LogoutModal 
+          isOpen={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      </AppLayout>
+    );
+  }
+
+  // Beerpong Final
+  if (view === VIEWS.BEERPONG_FINAL) {
+    return (
+      <AppLayout 
+        currentView={view} 
+        onNavigate={handleTabNavigate}
+        isAuthenticated={!!token}
+        isAdmin={isAdmin}
+        onLogoutClick={() => setShowLogoutModal(true)}
+      >
+        <BeerpongFinalView onNavigate={handleTabNavigate} />
         <LogoutModal 
           isOpen={showLogoutModal}
           onConfirm={handleLogout}

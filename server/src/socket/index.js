@@ -1,4 +1,5 @@
 import { setupApuestasSocketHandlers } from './apuestasHandlers.js';
+import { setupBeerpongSocketHandlers } from './beerpongHandlers.js';
 
 import { v4 as uuidv4 } from 'uuid';
 import { createRoom, addPlayerToRoom, removePlayerFromRooms } from './room.js';
@@ -42,6 +43,9 @@ export function setupSocketHandlers(io) {
   
   // Salas de Apuestas - cronómetro de precisión
   const apuestasRooms = new Map();
+  
+  // Salas de BeerPong Tournament - gestión de bracket
+  const bepongRooms = new Map();
   
   // Función helper para buscar sala de Time's Up
   const getTimesupRoom = (roomId) => {
@@ -1117,6 +1121,9 @@ export function setupSocketHandlers(io) {
 
     // ==================== APUESTAS - REGISTRAR HANDLERS ====================
     setupApuestasSocketHandlers(io, socket, apuestasRooms);
+
+    // ==================== BEERPONG - REGISTRAR HANDLERS ====================
+    setupBeerpongSocketHandlers(io, socket, bepongRooms);
 
     // ==================== DESCONEXIÓN ====================
     socket.on('disconnect', (reason) => {

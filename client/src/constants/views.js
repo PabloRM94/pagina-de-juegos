@@ -2,8 +2,8 @@
 export const VIEWS = {
   LOGIN: 'login',
   REGISTER: 'register',
-  RESET_PASSWORD: 'reset-password',  // Simplified: username + new password + confirm
-  WAITING: 'waiting',  // Vista de cuenta atrás
+  RESET_PASSWORD: 'reset-password',
+  WAITING: 'waiting',
   DASHBOARD: 'dashboard',
   GAMES: 'games',
   GAME: 'game',
@@ -25,7 +25,12 @@ export const VIEWS = {
   APUESTAS_CONFIG: 'apuestas-config',
   APUESTAS_PLAY: 'apuestas-play',
   APUESTAS_RESULT: 'apuestas-result',
-  APUESTAS_FINAL: 'apuestas-final'
+  APUESTAS_FINAL: 'apuestas-final',
+  // BeerPong Tournament views
+  BEERPONG_LOBBY: 'beerpong-lobby',
+  BEERPONG_SETUP: 'beerpong-setup',
+  BEERPONG_BRACKET: 'beerpong-bracket',
+  BEERPONG_FINAL: 'beerpong-final'
 };
 
 // URLs de API

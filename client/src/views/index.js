@@ -22,3 +22,8 @@ export { default as ApuestasConfigView } from './ApuestasConfigView.jsx';
 export { default as ApuestasPlayView } from './ApuestasPlayView.jsx';
 export { default as ApuestasResultView } from './ApuestasResultView.jsx';
 export { default as ApuestasFinalView } from './ApuestasFinalView.jsx';
+// BeerPong Tournament views
+export { default as BeerpongLobbyView } from './BeerpongLobbyView.jsx';
+export { default as BeerpongSetupView } from './BeerpongSetupView.jsx';
+export { default as BeerpongBracketView } from './BeerpongBracketView.jsx';
+export { default as BeerpongFinalView } from './BeerpongFinalView.jsx';
