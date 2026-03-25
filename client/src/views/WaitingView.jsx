@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, Countdown, Checklist } from '../components/index.js';
 import { api, ENDPOINTS } from '../api/index.js';
+import { getSocket } from '../hooks/useSocket.js';
 
 /**
  * Vista de espera (cuando el viaje no ha comenzado)
@@ -9,10 +10,6 @@ import { api, ENDPOINTS } from '../api/index.js';
  * @param {object} props.user - Usuario actual
  * @param {function} props.onConfigUpdate - Callback cuando se actualiza la config
  * @param {function} props.onNavigateToDashboard - Callback para ir al dashboard
- * @param {array} props.checklist - Lista de items de checklist
- * @param {function} props.onAddChecklistItem - Callback para agregar item
- * @param {function} props.onToggleChecklistItem - Callback para toggle item
- * @param {function} props.onDeleteChecklistItem - Callback para eliminar item
  * @param {function} props.onUpdateUserName - Callback para actualizar nombre
  */
 export function WaitingView({ 
@@ -20,15 +17,83 @@ export function WaitingView({
   user, 
   onConfigUpdate, 
   onNavigateToDashboard,
-  checklist,
-  onAddChecklistItem,
-  onToggleChecklistItem,
-  onDeleteChecklistItem,
   onUpdateUserName
 }) {
+  const [checklist, setChecklist] = useState([]);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [nameError, setNameError] = useState('');
+  
+  // Cargar checklist
+  useEffect(() => {
+    loadChecklist();
+  }, []);
+  
+  // Escuchar actualizaciones del checklist via socket
+  useEffect(() => {
+    const socket = getSocket();
+    
+    const handleChecklistUpdated = () => {
+      console.log('[WaitingView] Checklist actualizado via socket, recargando...');
+      loadChecklist();
+    };
+    
+    socket.on('checklist-updated', handleChecklistUpdated);
+    
+    return () => {
+      socket.off('checklist-updated', handleChecklistUpdated);
+    };
+  }, []);
+  
+  const loadChecklist = async () => {
+    try {
+      const response = await api.get(ENDPOINTS.CHECKLIST);
+      if (response.success) {
+        setChecklist(response.items);
+      }
+    } catch (err) {
+      console.error('Error loading checklist:', err);
+    }
+  };
+  
+  const handleAddChecklistItem = async (text, section = '') => {
+    try {
+      const response = await api.post(ENDPOINTS.CHECKLIST, { text, section });
+      if (response.success) {
+        await loadChecklist();
+      }
+      return response;
+    } catch (err) {
+      console.error('Error adding checklist item:', err);
+      return { success: false, error: 'Error agregando tarea' };
+    }
+  };
+  
+  const handleToggleChecklistItem = async (id) => {
+    try {
+      const response = await api.put(ENDPOINTS.CHECKLIST_TOGGLE(id));
+      if (response.success) {
+        await loadChecklist();
+      }
+      return response;
+    } catch (err) {
+      console.error('Error toggling checklist item:', err);
+      return { success: false, error: 'Error actualizando tarea' };
+    }
+  };
+  
+  const handleDeleteChecklistItem = async (id) => {
+    try {
+      const response = await api.delete(ENDPOINTS.CHECKLIST_DELETE(id));
+      if (response.success) {
+        await loadChecklist();
+      }
+      return response;
+    } catch (err) {
+      console.error('Error deleting checklist item:', err);
+      return { success: false, error: 'Error eliminando tarea' };
+    }
+  };
   
   const handleConfigChange = async (key, value) => {
     console.log('=== CONFIG CHANGE ===');
@@ -101,13 +166,15 @@ export function WaitingView({
           />
         </Card>
         
-        {/* Checklist */}
-        <Checklist
-          items={checklist || []}
-          onAddItem={onAddChecklistItem}
-          onToggleItem={onToggleChecklistItem}
-          onDeleteItem={onDeleteChecklistItem}
-        />
+        {/* Checklist - solo mostrar si hay secciones/items */}
+        {checklist.length > 0 && (
+          <Checklist
+            items={checklist}
+            onAddItem={handleAddChecklistItem}
+            onToggleItem={handleToggleChecklistItem}
+            onDeleteItem={handleDeleteChecklistItem}
+          />
+        )}
         
         {/* Panel de Admin */}
         {isAdmin && (

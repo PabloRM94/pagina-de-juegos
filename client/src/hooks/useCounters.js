@@ -147,6 +147,81 @@ export function useCounters(token) {
     }
   }, [token]);
   
+  /**
+   * Editar un tipo de contador (solo admin)
+   */
+  const updateCounterType = useCallback(async (id, name, icon) => {
+    if (!token) return;
+    
+    try {
+      const response = await api.put(ENDPOINTS.COUNTER_TYPE_UPDATE(id), { name, icon });
+      return response;
+    } catch (err) {
+      console.error('Error updating counter type:', err);
+      return { success: false, error: 'Error actualizando contador' };
+    }
+  }, [token]);
+  
+  /**
+   * Eliminar un tipo de contador (solo admin)
+   */
+  const deleteCounterType = useCallback(async (id) => {
+    if (!token) return;
+    
+    try {
+      const response = await api.delete(ENDPOINTS.COUNTER_TYPE_DELETE(id));
+      return response;
+    } catch (err) {
+      console.error('Error deleting counter type:', err);
+      return { success: false, error: 'Error eliminando contador' };
+    }
+  }, [token]);
+  
+  /**
+   * Cargar secciones del checklist
+   */
+  const loadChecklistSections = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      const response = await api.get(ENDPOINTS.CHECKLIST_SECTIONS);
+      return response.success ? response.sections : [];
+    } catch (err) {
+      console.error('Error loading checklist sections:', err);
+      return [];
+    }
+  }, [token]);
+  
+  /**
+   * Agregar sección al checklist
+   */
+  const addChecklistSection = useCallback(async (name) => {
+    if (!token) return;
+    
+    try {
+      const response = await api.post(ENDPOINTS.CHECKLIST_SECTIONS, { name });
+      return response;
+    } catch (err) {
+      console.error('Error adding checklist section:', err);
+      return { success: false, error: 'Error agregando sección' };
+    }
+  }, [token]);
+  
+  /**
+   * Eliminar sección del checklist
+   */
+  const deleteChecklistSection = useCallback(async (id) => {
+    if (!token) return;
+    
+    try {
+      const response = await api.delete(ENDPOINTS.CHECKLIST_SECTION_DELETE(id));
+      return response;
+    } catch (err) {
+      console.error('Error deleting checklist section:', err);
+      return { success: false, error: 'Error eliminando sección' };
+    }
+  }, [token]);
+  
   // Cargar datos al inicio
   useEffect(() => {
     if (token) {
@@ -166,7 +241,12 @@ export function useCounters(token) {
     addChecklistItem,
     toggleChecklistItem,
     deleteChecklistItem,
-    updateUserName
+    updateUserName,
+    updateCounterType,
+    deleteCounterType,
+    loadChecklistSections,
+    addChecklistSection,
+    deleteChecklistSection
   };
 }
 

@@ -17,6 +17,7 @@ import { api, ENDPOINTS } from '../api/index.js';
  * @param {function} props.onCancelTurbo - Callback para cancelar turbo
  * @param {function} props.onConfigTurbo - Callback para configurar turbo
  * @param {function} props.onCreateCounterType - Callback para crear tipo de contador
+ * @param {function} props.onUpdateCounterType - Callback para editar tipo de contador
  * @param {function} props.onDeleteCounterType - Callback para eliminar tipo de contador
  * @param {function} props.onNavigateToWaiting - Callback para ir a cuenta atrás
  */
@@ -32,12 +33,16 @@ export function AdminView({
   onCancelTurbo,
   onConfigTurbo,
   onCreateCounterType,
+  onUpdateCounterType,
   onDeleteCounterType,
   onNavigateToWaiting
 }) {
   const [newCounterName, setNewCounterName] = useState('');
   const [newCounterIcon, setNewCounterIcon] = useState('🔢');
   const [showAddCounter, setShowAddCounter] = useState(false);
+  const [editingCounter, setEditingCounter] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editIcon, setEditIcon] = useState('');
   // Solo admins pueden ver esta vista
   if (!user?.isAdmin) {
     return (
@@ -270,23 +275,91 @@ export function AdminView({
           )}
           
           <div className="space-y-2">
-            {counterTypes?.filter(c => !c.is_fixed).map(counter => (
+            {/* Mostrar TODOS los contadores (fijos + personalizados) */}
+            {counterTypes?.map(counter => (
               <div key={counter.id} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">{counter.icon}</span>
-                  <span className="text-white">{counter.name}</span>
-                </div>
-                <button
-                  onClick={() => onDeleteCounterType(counter.id)}
-                  className="text-red-400 hover:text-red-300 text-2xl p-2 cursor-pointer"
-                >
-                  🗑️
-                </button>
+                {editingCounter === counter.id ? (
+                  // Modo edición
+                  <div className="flex items-center gap-2 flex-1">
+                    <select
+                      value={editIcon}
+                      onChange={(e) => setEditIcon(e.target.value)}
+                      className="bg-gray-700 text-white px-2 py-1 rounded text-xl"
+                    >
+                      <option value="🍺">🍺</option>
+                      <option value="🚿">🚿</option>
+                      <option value="💧">💧</option>
+                      <option value="🥫">🥫</option>
+                      <option value="🔢">🔢</option>
+                      <option value="🍕">🍕</option>
+                      <option value="☕">☕</option>
+                      <option value="🍷">🍷</option>
+                      <option value="🥤">🥤</option>
+                      <option value="🍔">🍔</option>
+                      <option value="🎮">🎮</option>
+                      <option value="⚽">⚽</option>
+                      <option value="🏊">🏊</option>
+                      <option value="🚬">🚬</option>
+                      <option value="💊">💊</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      maxLength={15}
+                      className="flex-1 bg-gray-700 text-white px-2 py-1 rounded"
+                    />
+                    <button
+                      onClick={async () => {
+                        await onUpdateCounterType(counter.id, editName, editIcon);
+                        setEditingCounter(null);
+                      }}
+                      className="text-green-400 hover:text-green-300 p-1"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={() => setEditingCounter(null)}
+                      className="text-gray-400 hover:text-white p-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  // Modo visualización
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{counter.icon}</span>
+                      <span className="text-white">{counter.name}</span>
+                      {counter.is_fixed && (
+                        <span className="text-gray-500 text-xs">(fijo)</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          setEditingCounter(counter.id);
+                          setEditName(counter.name);
+                          setEditIcon(counter.icon);
+                        }}
+                        className="text-blue-400 hover:text-blue-300 text-xl p-2 cursor-pointer"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => onDeleteCounterType(counter.id)}
+                        className="text-red-400 hover:text-red-300 text-2xl p-2 cursor-pointer"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
-            {(!counterTypes || counterTypes.filter(c => !c.is_fixed).length === 0) && (
+            {(!counterTypes || counterTypes.length === 0) && (
               <p className="text-gray-400 text-sm text-center py-2">
-                No hay contadores personalizados
+                No hay contadores disponibles
               </p>
             )}
           </div>

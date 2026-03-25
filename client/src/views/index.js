@@ -2,6 +2,7 @@ export { LoginView } from './LoginView.jsx';
 export { RegisterView } from './RegisterView.jsx';
 export { WaitingView } from './WaitingView.jsx';
 export { DashboardView } from './DashboardView.jsx';
+export { ChecklistView } from './ChecklistView.jsx';
 export { GamesView } from './GamesView.jsx';
 export { AdminView } from './AdminView.jsx';
 export { GameView } from './GameView.jsx';

@@ -177,6 +177,15 @@ export async function initDatabase() {
       FOREIGN KEY (completed_by) REFERENCES users(id),
       FOREIGN KEY (created_by) REFERENCES users(id)
     );
+    
+    -- Secciones del checklist (para agrupar items)
+    CREATE TABLE IF NOT EXISTS checklist_sections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    );
 
     -- Estado del Turbo Lata
     CREATE TABLE IF NOT EXISTS turbo_state (

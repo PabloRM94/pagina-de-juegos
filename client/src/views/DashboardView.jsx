@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CounterCard, Checklist } from '../components/index.js';
+import { Card, CounterCard } from '../components/index.js';
 
 /**
  * Filtra usuarios reales (no invitados - tienen ID positivo)
@@ -20,10 +20,6 @@ const filterRealUsers = (users) => users.filter(u => u.id > 0);
  * @param {function} props.onTriggerTurbo - Callback para activar turbo
  * @param {function} props.onConfirmTurbo - Callback para confirmar turbo
  * @param {function} props.onCancelTurbo - Callback para cancelar turbo
- * @param {array} props.checklist - Lista de items de checklist
- * @param {function} props.onAddChecklistItem - Callback para agregar item
- * @param {function} props.onToggleChecklistItem - Callback para toggle item
- * @param {function} props.onDeleteChecklistItem - Callback para eliminar item
  * @param {function} props.onUpdateUserName - Callback para actualizar nombre
  */
 export function DashboardView({
@@ -37,10 +33,6 @@ export function DashboardView({
   onTriggerTurbo,
   onConfirmTurbo,
   onCancelTurbo,
-  checklist,
-  onAddChecklistItem,
-  onToggleChecklistItem,
-  onDeleteChecklistItem,
   onUpdateUserName
 }) {
   const [selectedUserId, setSelectedUserId] = useState(null);
@@ -204,14 +196,6 @@ export function DashboardView({
             )}
           </Card>
         )}
-        
-        {/* Checklist */}
-        <Checklist
-          items={checklist || []}
-          onAddItem={onAddChecklistItem}
-          onToggleItem={onToggleChecklistItem}
-          onDeleteItem={onDeleteChecklistItem}
-        />
         
         {/* Contadores */}
         <div className="grid grid-cols-2 gap-3">
