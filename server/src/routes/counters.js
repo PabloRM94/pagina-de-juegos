@@ -485,14 +485,10 @@ router.get('/checklist/sections', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/checklist/sections
- * Crea una nueva sección (solo admin)
+ * Crea una nueva sección (cualquier usuario)
  */
 router.post('/checklist/sections', authenticateToken, async (req, res) => {
   try {
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ success: false, error: 'Solo el admin puede crear secciones' });
-    }
-    
     const { name } = req.body;
     const userId = req.user.id;
     
@@ -518,14 +514,10 @@ router.post('/checklist/sections', authenticateToken, async (req, res) => {
 
 /**
  * DELETE /api/checklist/sections/:id
- * Elimina una sección (solo admin)
+ * Elimina una sección solo si no tiene tareas asociadas
  */
 router.delete('/checklist/sections/:id', authenticateToken, async (req, res) => {
   try {
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ success: false, error: 'Solo el admin puede eliminar secciones' });
-    }
-    
     const { id } = req.params;
     
     const section = await db.prepare('SELECT * FROM checklist_sections WHERE id = ?').get(id);
@@ -533,11 +525,20 @@ router.delete('/checklist/sections/:id', authenticateToken, async (req, res) => 
       return res.status(404).json({ success: false, error: 'Sección no encontrada' });
     }
     
+    // Verificar si hay tareas en esta sección
+    const itemsInSection = await db.prepare(
+      'SELECT COUNT(*) as count FROM checklist_items WHERE section = ?'
+    ).get(section.name);
+    
+    if (itemsInSection.count > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No se puede eliminar la sección porque tiene tareas asociadas' 
+      });
+    }
+    
     // Eliminar la sección
     await db.prepare('DELETE FROM checklist_sections WHERE id = ?').run(id);
-    
-    // También eliminar los items de esa sección
-    await db.prepare('DELETE FROM checklist_items WHERE section = ?').run(section.name);
     
     // Notificar a todos
     if (req.app.get('io')) {
