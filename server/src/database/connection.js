@@ -99,9 +99,13 @@ if (useTurso) {
 export async function initDatabase() {
   // Agregar columna section si no existe (para bases de datos existentes)
   try {
-    db.exec("ALTER TABLE checklist_items ADD COLUMN section TEXT DEFAULT ''");
+    const tableInfo = await db.prepare("PRAGMA table_info(checklist_items)").all();
+    const hasSection = tableInfo.some(col => col.name === 'section');
+    if (!hasSection) {
+      db.exec("ALTER TABLE checklist_items ADD COLUMN section TEXT DEFAULT ''");
+    }
   } catch (e) {
-    // Columna ya existe o tabla no existe aún
+    // Tabla no existe aún o error - continuar
   }
   
   const createTablesSQL = `
