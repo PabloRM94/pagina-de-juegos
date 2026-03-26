@@ -4,14 +4,20 @@ import { VIEWS } from '../constants/index.js';
 
 /**
  * Vista del Bracket de BeerPong Tournament
- * Muestra el bracket y permite seleccionar ganadores
+ * Muestra fase de grupos + eliminación y permite seleccionar ganadores
  * @param {object} props
  * @param {function} props.onNavigate - Función para navegar
  */
 export function BeerpongBracketView({ onNavigate }) {
   const { socket } = useSocket();
   const [roomId, setRoomId] = useState('');
-  const [bracket, setBracket] = useState({ rounds: [], teams: [] });
+  const [bracket, setBracket] = useState({ 
+    mode: 'liga',
+    groupStage: { groups: [], matches: [], standings: [] }, 
+    knockout: { rounds: [] }, 
+    teams: []
+  });
+  const [state, setState] = useState('group');
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [error, setError] = useState('');
 
@@ -24,7 +30,14 @@ export function BeerpongBracketView({ onNavigate }) {
       // Obtener bracket del servidor
       socket.emit('beerpong-get-room', { roomId: storedRoomId }, (response) => {
         if (response.success) {
-          setBracket(response.room.bracket || { rounds: [], teams: [] });
+          const room = response.room;
+          setBracket(room.bracket || { 
+            mode: 'liga',
+            groupStage: { groups: [], matches: [], standings: [] }, 
+            knockout: { rounds: [] }, 
+            teams: [] 
+          });
+          setState(room.state || 'group');
         }
       });
     }
@@ -35,6 +48,7 @@ export function BeerpongBracketView({ onNavigate }) {
     const handleBracketUpdated = (data) => {
       if (data.roomId === roomId) {
         setBracket(data.bracket);
+        setState(data.state || 'group');
         
         // Si hay campeón, navegar a la pantalla final
         if (data.bracket.champion) {
@@ -52,10 +66,17 @@ export function BeerpongBracketView({ onNavigate }) {
   }, [socket, roomId, onNavigate]);
 
   // Seleccionar partido para elegir winner
-  const handleMatchClick = (roundIndex, matchIndex, match) => {
-    // Solo permitir si ambos equipos están definidos y no hay winner
-    if (match.team1 && match.team2 && !match.winner) {
-      setSelectedMatch({ roundIndex, matchIndex, match });
+  const handleMatchClick = (stage, roundIndex, matchIndex, match) => {
+    if (stage === 'group') {
+      if (match.team1 && match.team2 && !match.winner) {
+        setSelectedMatch({ stage, roundIndex: 0, matchIndex, match });
+      }
+    } else if (stage === 'knockout') {
+      if ((match.team1 && match.team2 && !match.winner) || 
+          (match.team1 && !match.team2 && !match.winner) ||
+          (!match.team1 && match.team2 && !match.winner)) {
+        setSelectedMatch({ stage, roundIndex, matchIndex, match });
+      }
     }
   };
 
@@ -67,6 +88,7 @@ export function BeerpongBracketView({ onNavigate }) {
       const result = await new Promise((resolve, reject) => {
         socket.emit('beerpong-set-winner', {
           roomId,
+          stage: selectedMatch.stage,
           roundIndex: selectedMatch.roundIndex,
           matchIndex: selectedMatch.matchIndex,
           winnerTeamId: teamId
@@ -77,6 +99,7 @@ export function BeerpongBracketView({ onNavigate }) {
       });
 
       setBracket(result.bracket);
+      setState(result.state || 'group');
       setSelectedMatch(null);
     } catch (err) {
       console.error('Error al seleccionar winner:', err);
@@ -97,44 +120,88 @@ export function BeerpongBracketView({ onNavigate }) {
     return bracket.teams?.find(t => t.id === teamId);
   };
 
-  // Renderizar ronda
-  const renderRound = (round, roundIndex) => {
-    const totalRounds = bracket.rounds?.length || 0;
-    const namesByRounds = {
-      1: ['Final'],
-      2: ['Semifinales', 'Final'],
-      3: ['Cuartos', 'Semifinales', 'Final'],
-      4: ['Octavos', 'Cuartos', 'Semifinales', 'Final']
-    };
-    const defaultName = (idx) => {
-      const labels = ['Final', 'Semifinales', 'Cuartos', 'Octavos'];
-      const pos = totalRounds - idx - 1;
-      return labels[pos] || `Ronda ${idx + 1}`;
-    };
+  // Renderizar partido de fase de grupos
+  const renderGroupMatch = (match, matchIndex) => {
+    const isClickable = match.team1 && match.team2 && !match.winner;
+    const isBye = match.bye || (!match.team1 || !match.team2);
+    
+    return (
+      <div
+        key={matchIndex}
+        onClick={() => handleMatchClick('group', 0, matchIndex, match)}
+        className={`
+          relative bg-gray-800 border-2 rounded-lg p-2 min-w-[160px]
+          ${isClickable ? 'cursor-pointer hover:border-amber-500 border-gray-600' : 'border-gray-700'}
+          ${match.winner ? 'border-green-500/50' : ''}
+          ${isBye ? 'border-yellow-600/50' : ''}
+        `}
+      >
+        <div className={`
+          flex justify-between items-center px-2 py-1 rounded
+          ${match.winner === match.team1 ? 'bg-green-600/30' : 'bg-gray-700/30'}
+        `}>
+          <span className={`text-sm truncate ${match.winner === match.team1 ? 'text-green-400 font-bold' : 'text-white'}`}>
+            {getTeamName(match.team1)}
+          </span>
+          {match.winner === match.team1 && <span className="text-green-400 text-xs">🏆</span>}
+        </div>
+        
+        <div className="border-t border-gray-600 my-1"></div>
+        
+        <div className={`
+          flex justify-between items-center px-2 py-1 rounded
+          ${match.winner === match.team2 ? 'bg-green-600/30' : 'bg-gray-700/30'}
+        `}>
+          <span className={`text-sm truncate ${match.winner === match.team2 ? 'text-green-400 font-bold' : 'text-white'}`}>
+            {getTeamName(match.team2)}
+          </span>
+          {match.winner === match.team2 && <span className="text-green-400 text-xs">🏆</span>}
+          {!match.team2 && match.team1 && <span className="text-yellow-500 text-xs">BYE</span>}
+        </div>
+        
+        {match.winner && (
+          <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+            <span className="text-white text-xs">✓</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
-    const labelList = namesByRounds[totalRounds] || Array.from({ length: totalRounds }, (_, i) => defaultName(i));
-    const roundName = labelList[roundIndex] || `Ronda ${roundIndex + 1}`;
+  // Renderizar ronda de knockout
+  const renderKnockoutRound = (round, roundIndex) => {
+    const totalRounds = bracket.knockout?.rounds?.length || 0;
+    
+    const getRoundName = () => {
+      const roundFromEnd = totalRounds - 1 - roundIndex;
+      
+      switch (roundFromEnd) {
+        case 0: return '🏆 Final';
+        case 1: return '⚔️ Semifinales';
+        case 2: return '🎯 Cuartos de Final';
+        case 3: return '🔹 Octavos de Final';
+        default: return `Ronda ${roundIndex + 1}`;
+      }
+    };
 
     return (
       <div key={roundIndex} className="flex flex-col justify-around space-y-4 min-w-[180px]">
-        <div className="text-center text-amber-400 font-bold text-sm mb-2">{roundName}</div>
+        <div className="text-center text-amber-400 font-bold text-sm mb-2">{getRoundName()}</div>
         {round.map((match, matchIndex) => {
-          const team1 = getTeamInfo(match.team1);
-          const team2 = getTeamInfo(match.team2);
-          const isClickable = match.team1 && match.team2 && !match.winner;
-          const isFinal = roundIndex === bracket.rounds.length - 1;
+          const canClick = (match.team1 || match.team2) && !match.winner;
+          const isBye = match.bye || (!match.team1 || !match.team2);
           
           return (
             <div
               key={matchIndex}
-              onClick={() => handleMatchClick(roundIndex, matchIndex, match)}
+              onClick={() => canClick && handleMatchClick('knockout', roundIndex, matchIndex, match)}
               className={`
                 relative bg-gray-800 border-2 rounded-lg p-2 min-w-[160px]
-                ${isClickable ? 'cursor-pointer hover:border-amber-500 border-gray-600' : 'border-gray-700'}
+                ${canClick ? 'cursor-pointer hover:border-amber-500 border-gray-600' : 'border-gray-700'}
                 ${match.winner ? 'border-green-500/50' : ''}
+                ${isBye ? 'border-yellow-600/50' : ''}
               `}
             >
-              {/* Equipo 1 */}
               <div className={`
                 flex justify-between items-center px-2 py-1 rounded
                 ${match.winner === match.team1 ? 'bg-green-600/30' : 'bg-gray-700/30'}
@@ -143,12 +210,11 @@ export function BeerpongBracketView({ onNavigate }) {
                   {getTeamName(match.team1)}
                 </span>
                 {match.winner === match.team1 && <span className="text-green-400 text-xs">🏆</span>}
+                {isBye && match.team1 && !match.team2 && <span className="text-yellow-500 text-xs">BYE</span>}
               </div>
               
-              {/* Separador */}
               <div className="border-t border-gray-600 my-1"></div>
               
-              {/* Equipo 2 */}
               <div className={`
                 flex justify-between items-center px-2 py-1 rounded
                 ${match.winner === match.team2 ? 'bg-green-600/30' : 'bg-gray-700/30'}
@@ -157,9 +223,9 @@ export function BeerpongBracketView({ onNavigate }) {
                   {getTeamName(match.team2)}
                 </span>
                 {match.winner === match.team2 && <span className="text-green-400 text-xs">🏆</span>}
+                {!match.team1 && match.team2 && <span className="text-yellow-500 text-xs">BYE</span>}
               </div>
               
-              {/* Indicador de completado */}
               {match.winner && (
                 <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                   <span className="text-white text-xs">✓</span>
@@ -172,36 +238,129 @@ export function BeerpongBracketView({ onNavigate }) {
     );
   };
 
+  // Renderizar fase de grupos
+  const renderGroupStage = () => {
+    const { groups, matches, standings } = bracket.groupStage;
+    
+    if (!groups || groups.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-amber-400 mb-2">🏅 Fase de Grupos</h2>
+          <p className="text-gray-400 text-sm">
+            {groups.length} grupo(s) • Round Robin
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {groups.map((group, groupIndex) => {
+            const groupMatches = matches.filter(m => m.groupIndex === groupIndex);
+            const groupStandings = standings[groupIndex] || [];
+            
+            return (
+              <div key={groupIndex} className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700">
+                <h3 className="text-lg font-bold text-amber-400 mb-3">{group.name}</h3>
+                
+                <div className="space-y-2 mb-4">
+                  {groupMatches.map((match, idx) => {
+                    const globalIndex = matches.findIndex(m => m === match);
+                    return renderGroupMatch(match, globalIndex);
+                  })}
+                </div>
+                
+                <div className="border-t border-gray-600 pt-3">
+                  <h4 className="text-sm text-gray-400 mb-2">Clasificación</h4>
+                  <div className="space-y-1">
+                    {groupStandings.map((s, pos) => (
+                      <div key={s.teamId} className="flex justify-between text-sm">
+                        <span className={pos < 2 ? 'text-green-400 font-bold' : 'text-white'}>
+                          {pos + 1}. {getTeamName(s.teamId)}
+                        </span>
+                        <span className="text-gray-400">
+                          {s.wins}V - {s.losses}D
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="text-center text-gray-400 text-sm">
+          👆 Selecciona el ganador de cada partido
+        </div>
+      </div>
+    );
+  };
+
+  // Renderizar fase de knockout
+  const renderKnockoutStage = () => {
+    const { rounds } = bracket.knockout;
+    
+    if (!rounds || rounds.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-amber-400 mb-2">
+            {bracket.mode === 'playoff' ? '⚔️ Eliminación Directa' : '⚔️ Fase Final'}
+          </h2>
+          <p className="text-gray-400 text-sm">
+            {bracket.mode === 'playoff' ? 'Con byes automáticos' : 'Cruces 1º vs 2º'}
+          </p>
+        </div>
+
+        <div className="flex justify-center gap-8 flex-wrap">
+          {rounds.map((round, index) => renderKnockoutRound(round, index))}
+        </div>
+
+        <div className="text-center text-gray-400 text-sm">
+          👆 Selecciona el ganador de cada partido
+        </div>
+      </div>
+    );
+  };
+
+  // Determinar qué mostrar
+  const showGroupStage = bracket.mode === 'liga' && bracket.groupStage?.groups?.length > 0;
+  const showKnockoutStage = state === 'knockout' || (showGroupStage && bracket.knockout?.rounds?.length > 0);
+
   return (
     <div className="min-h-screen p-4 pb-24">
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-white mb-2">🏆 Tournament</h1>
           <p className="text-gray-400 text-sm">Code: {roomId}</p>
+          
+          <div className="flex justify-center gap-2 mt-2">
+            <span className={`px-3 py-1 rounded-full text-xs ${bracket.mode === 'liga' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+              {bracket.mode === 'liga' ? '⚽ Liga' : '⚔️ Playoff'}
+            </span>
+            <span className={`px-3 py-1 rounded-full text-xs ${state === 'group' ? 'bg-blue-600 text-white' : state === 'knockout' ? 'bg-purple-600 text-white' : 'bg-green-600 text-white'}`}>
+              {state === 'group' ? 'Grupos' : state === 'knockout' ? 'Fase Final' : 'Finalizado'}
+            </span>
+          </div>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-400 text-center mb-4">
             {error}
           </div>
         )}
 
-        {/* Bracket */}
-        <div className="overflow-x-auto pb-4">
-          <div className="flex justify-start gap-8 min-w-max px-4">
-            {bracket.rounds?.map((round, index) => renderRound(round, index))}
-          </div>
+        <div className="space-y-8">
+          {showGroupStage && renderGroupStage()}
+          {showKnockoutStage && renderKnockoutStage()}
         </div>
 
-        {/* Leyenda */}
-        <div className="text-center mt-6 text-gray-500 text-sm">
-          <p>Click en un partido para seleccionar el ganador</p>
-        </div>
-
-        {/* Botón volver */}
-        <div className="max-w-md mx-auto mt-6">
+        <div className="max-w-md mx-auto mt-8">
           <button
             onClick={() => onNavigate(VIEWS.GAMES)}
             className="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-2 px-4 rounded-lg transition-colors"
@@ -211,7 +370,6 @@ export function BeerpongBracketView({ onNavigate }) {
         </div>
       </div>
 
-      {/* Modal para seleccionar winner */}
       {selectedMatch && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-800 rounded-2xl p-6 max-w-sm w-full border border-gray-700">
@@ -220,29 +378,37 @@ export function BeerpongBracketView({ onNavigate }) {
             </h2>
             
             <div className="space-y-3">
-              {/* Equipo 1 */}
-              <button
-                onClick={() => handleSelectWinner(selectedMatch.match.team1)}
-                className="w-full bg-gray-700 hover:bg-amber-600 text-white font-bold py-4 px-4 rounded-lg transition-colors flex items-center justify-between"
-              >
-                <span>{getTeamName(selectedMatch.match.team1)}</span>
-                <span className="text-2xl">🥇</span>
-              </button>
+              {selectedMatch.match.team1 && (
+                <button
+                  onClick={() => handleSelectWinner(selectedMatch.match.team1)}
+                  className="w-full bg-gray-700 hover:bg-amber-600 text-white font-bold py-4 px-4 rounded-lg transition-colors flex items-center justify-between"
+                >
+                  <span>{getTeamName(selectedMatch.match.team1)}</span>
+                  <span className="text-2xl">🥇</span>
+                </button>
+              )}
 
-              {/* VS */}
-              <div className="text-center text-gray-500 font-bold">VS</div>
+              {selectedMatch.match.team1 && selectedMatch.match.team2 && (
+                <div className="text-center text-gray-500 font-bold">VS</div>
+              )}
 
-              {/* Equipo 2 */}
-              <button
-                onClick={() => handleSelectWinner(selectedMatch.match.team2)}
-                className="w-full bg-gray-700 hover:bg-amber-600 text-white font-bold py-4 px-4 rounded-lg transition-colors flex items-center justify-between"
-              >
-                <span>{getTeamName(selectedMatch.match.team2)}</span>
-                <span className="text-2xl">🥇</span>
-              </button>
+              {selectedMatch.match.team2 && (
+                <button
+                  onClick={() => handleSelectWinner(selectedMatch.match.team2)}
+                  className="w-full bg-gray-700 hover:bg-amber-600 text-white font-bold py-4 px-4 rounded-lg transition-colors flex items-center justify-between"
+                >
+                  <span>{getTeamName(selectedMatch.match.team2)}</span>
+                  <span className="text-2xl">🥇</span>
+                </button>
+              )}
+
+              {(!selectedMatch.match.team1 || !selectedMatch.match.team2) && (
+                <div className="text-center text-yellow-400 text-sm">
+                  ⚠️ Equipo sin rival - Ganará automáticamente
+                </div>
+              )}
             </div>
 
-            {/* Cancelar */}
             <button
               onClick={() => setSelectedMatch(null)}
               className="w-full mt-4 bg-gray-600 hover:bg-gray-500 text-white font-medium py-2 px-4 rounded-lg transition-colors"

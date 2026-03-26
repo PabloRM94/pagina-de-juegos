@@ -4,16 +4,16 @@ import { VIEWS } from '../constants/index.js';
 
 /**
  * Vista de Lobby de BeerPong Tournament
- * El host configura: número de equipos y jugadores por equipo
+ * El host configura: modo de juego, número de equipos y jugadores por equipo
  * @param {object} props
  * @param {function} props.onNavigate - Función para navegar
  */
 export function BeerpongLobbyView({ onNavigate }) {
   const { socket } = useSocket();
   const [playerName, setPlayerName] = useState('');
+  const [gameMode, setGameMode] = useState('liga'); // 'liga' o 'playoff'
   const [teamsCount, setTeamsCount] = useState(4);
   const [playersPerTeam, setPlayersPerTeam] = useState(2);
-  const [minMatchesPerTeam, setMinMatchesPerTeam] = useState(1);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
 
@@ -32,7 +32,7 @@ export function BeerpongLobbyView({ onNavigate }) {
         socket.emit('beerpong-create', { 
           teamsCount, 
           playersPerTeam, 
-          minMatchesPerTeam,
+          gameMode,
           playerName 
         }, (response) => {
           console.log('beerpong-create response:', response);
@@ -52,6 +52,31 @@ export function BeerpongLobbyView({ onNavigate }) {
       setError(err.message);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Obtener descripción del formato según configuración
+  const getFormatDescription = () => {
+    if (gameMode === 'liga') {
+      if (teamsCount <= 5) {
+        if (teamsCount < 4) {
+          return '1 grupo • Todos vs todos • Campeón directo';
+        }
+        return '1 grupo • Todos vs todos → Semifinales → Final';
+      } else {
+        const g1 = Math.floor(teamsCount / 2);
+        const g2 = teamsCount - g1;
+        return `${g1}+${g2} equipos en 2 grupos → Cruces → Final`;
+      }
+    } else {
+      // Playoff
+      const nextPower = Math.pow(2, Math.ceil(Math.log2(teamsCount)));
+      const byes = nextPower - teamsCount;
+      
+      if (teamsCount === 2) return 'Final directa';
+      if (teamsCount === 3 || teamsCount === 4) return 'Semifinales → Final';
+      if (byes > 0) return `${byes} byes → Cuartos → Semifinales → Final`;
+      return 'Octavos → Cuartos → Semifinales → Final';
     }
   };
 
@@ -85,16 +110,48 @@ export function BeerpongLobbyView({ onNavigate }) {
 
         {/* Configuración del torneo */}
         <div className="space-y-4">
+          {/* Modo de juego */}
+          <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700">
+            <label className="block text-gray-400 text-sm mb-3">Modo de Juego</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setGameMode('liga')}
+                className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
+                  gameMode === 'liga'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                ⚽ Liga
+              </button>
+              <button
+                type="button"
+                onClick={() => setGameMode('playoff')}
+                className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
+                  gameMode === 'playoff'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                ⚔️ Playoff
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-2">
+              {gameMode === 'liga' ? 'Fase de grupos + Eliminación' : 'Eliminación directa'}
+            </p>
+          </div>
+
           {/* Número de equipos */}
           <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700">
             <label className="block text-gray-400 text-sm mb-3">Número de equipos</label>
-            <div className="flex gap-2">
-              {[4, 6, 8, 12, 16].map(num => (
+            <div className="flex gap-2 flex-wrap">
+              {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
                 <button
                   type="button"
                   key={num}
                   onClick={() => setTeamsCount(num)}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
+                  className={`flex-1 min-w-[40px] py-2 rounded-lg font-medium transition-colors ${
                     teamsCount === num
                       ? 'bg-amber-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
@@ -104,12 +161,8 @@ export function BeerpongLobbyView({ onNavigate }) {
                 </button>
               ))}
             </div>
-            <p className="text-gray-500 text-xs mt-2">
-              {teamsCount === 4 && 'Semifinales → Final (3 partidos)'}
-              {teamsCount === 6 && 'Ronda 1 → Semifinales → Final (5 partidos)'}
-              {teamsCount === 8 && 'Cuartos → Semifinales → Final (7 partidos)'}
-              {teamsCount === 12 && 'Ronda 1 (con byes) → Cuartos → Semifinales → Final (11 partidos)'}
-              {teamsCount === 16 && 'Ronda de 16 → Cuartos → Semifinales → Final (15 partidos)'}
+            <p className="text-amber-400 text-xs mt-2">
+              {getFormatDescription()}
             </p>
           </div>
 
@@ -132,31 +185,6 @@ export function BeerpongLobbyView({ onNavigate }) {
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Mínimo partidos por equipo */}
-          <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700">
-            <label className="block text-gray-400 text-sm mb-3">Mínimo partidos por equipo</label>
-            <div className="flex gap-2">
-              {[1, 2].map(num => (
-                <button
-                  type="button"
-                  key={num}
-                  onClick={() => setMinMatchesPerTeam(num)}
-                  className={`flex-1 py-2 rounded-lg font-medium transition-colors ${
-                    minMatchesPerTeam === num
-                      ? 'bg-amber-600 text-white'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                >
-                  {num} {num === 1 ? 'partido' : 'partidos'}
-                </button>
-              ))}
-            </div>
-            <p className="text-gray-500 text-xs mt-2">
-              {minMatchesPerTeam === 1 && 'Eliminación simple - algunos equipos pueden jugar solo 1 partido'}
-              {minMatchesPerTeam === 2 && 'Doble eliminación - todos los equipos juegan al menos 2 partidos'}
-            </p>
           </div>
 
           {/* Botón crear */}
