@@ -98,13 +98,10 @@ if (useTurso) {
  */
 export async function initDatabase() {
   // Agregar columna section si no existe (para bases de datos existentes)
-  // Solo para better-sqlite3 local, Turso ya tiene la tabla creada
-  if (!useTurso) {
-    try {
-      db.exec("ALTER TABLE checklist_items ADD COLUMN section TEXT DEFAULT ''");
-    } catch (e) {
-      // Columna ya existe o tabla no existe aún
-    }
+  try {
+    db.exec("ALTER TABLE checklist_items ADD COLUMN section TEXT DEFAULT ''");
+  } catch (e) {
+    // Columna ya existe o tabla no existe aún
   }
   
   const createTablesSQL = `
@@ -296,6 +293,13 @@ export async function initDatabase() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (target_user_id) REFERENCES users(id),
         FOREIGN KEY (confirmed_by_user_id) REFERENCES users(id)
+      )`,
+      `CREATE TABLE IF NOT EXISTS checklist_sections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id)
       )`
     ];
 
