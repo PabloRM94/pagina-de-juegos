@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CounterCard } from '../components/index.js';
 
 /**
@@ -39,6 +39,32 @@ export function DashboardView({
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [nameError, setNameError] = useState('');
+  const [hasConfirmedTurbo, setHasConfirmedTurbo] = useState(false);
+  const [loadingCounters, setLoadingCounters] = useState({});
+  
+  // Resetear confirmación cuando cambia el target del turbo
+  useEffect(() => {
+    if (turboState?.current_target_user_id) {
+      setHasConfirmedTurbo(false);
+    }
+  }, [turboState?.current_target_user_id]);
+  
+  // Handler para actualizar contador con loading state
+  const handleCounterUpdate = async (counterType, action) => {
+    const key = `${counterType}-${action}`;
+    setLoadingCounters(prev => ({ ...prev, [key]: true }));
+    try {
+      await onUpdateCounter(targetUserId, counterType, action);
+    } finally {
+      setLoadingCounters(prev => ({ ...prev, [key]: false }));
+    }
+  };
+  
+  // Handler para confirmar turbo
+  const handleConfirmTurboClick = async () => {
+    setHasConfirmedTurbo(true);
+    await onConfirmTurbo();
+  };
   
   // Filtrar usuarios reales (no invitados)
   const realUsers = filterRealUsers(users);
@@ -206,8 +232,9 @@ export function DashboardView({
               title={counter.name}
               icon={counter.icon}
               value={getCounterValue(counter.slug)}
-              onInc={() => onUpdateCounter(targetUserId, counter.slug, 'increment')}
-              onDec={() => onUpdateCounter(targetUserId, counter.slug, 'decrement')}
+              onInc={() => handleCounterUpdate(counter.slug, 'increment')}
+              onDec={() => handleCounterUpdate(counter.slug, 'decrement')}
+              isLoading={loadingCounters[`${counter.slug}-increment`] || loadingCounters[`${counter.slug}-decrement`]}
               color={counterColors[index % counterColors.length]}
             />
           ))}
@@ -225,8 +252,12 @@ export function DashboardView({
                   {turboState.current_confirmations} / {turboState.required_confirmations} confirmaciones
                 </p>
                 {user?.id !== turboState.current_target_user_id && (
-                  <button onClick={onConfirmTurbo} className="btn-primary">
-                    Confirmar que lo bebió
+                  <button 
+                    onClick={handleConfirmTurboClick} 
+                    className={`btn-primary ${hasConfirmedTurbo ? '!bg-green-600 hover:!bg-green-700' : ''}`}
+                    disabled={hasConfirmedTurbo}
+                  >
+                    {hasConfirmedTurbo ? '✅ Confirmado' : 'Confirmar que lo bebió'}
                   </button>
                 )}
                 {isAdmin && (
