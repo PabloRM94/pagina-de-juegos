@@ -166,6 +166,7 @@ export function DashboardView({
                 className="text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1"
               >
                 {user?.name}
+                {user?.name === 'Ferrintxi Torero Valiente' && <span>🐂</span>}
                 <span className="text-xs">✏️</span>
               </button>
             </div>
