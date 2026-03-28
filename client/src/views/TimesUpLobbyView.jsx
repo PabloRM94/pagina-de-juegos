@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useSocket } from '../hooks/index.js';
+import { useSocket, saveRoomInfo } from '../hooks/index.js';
 import { CopyButton } from '../components/index.js';
 import { VIEWS } from '../constants/index.js';
+
+/**
+ * Obtener sessionId del localStorage
+ */
+const getSessionId = () => {
+  return localStorage.getItem('user_session_id');
+};
 
 /**
  * Vista de Lobby de Time's Up
@@ -19,7 +26,32 @@ export function TimesUpLobbyView({ onNavigate }) {
   const [error, setError] = useState('');
   const [players, setPlayers] = useState([]);
   const [isHost, setIsHost] = useState(false);
-  const [inRoom, setInRoom] = useState(false); // Nuevo estado para saber si ya está en sala
+  const [inRoom, setInRoom] = useState(false);
+  const [activeRooms, setActiveRooms] = useState([]);
+  const [showRooms, setShowRooms] = useState(false);
+  
+  // Obtener salas activas al montar el componente
+  useEffect(() => {
+    const fetchActiveRooms = () => {
+      socket.emit('timesup-get-active-rooms', {}, (response) => {
+        if (response.success) {
+          setActiveRooms(response.rooms || []);
+        }
+      });
+    };
+    
+    fetchActiveRooms();
+    
+    // Actualizar cada 5 segundos
+    const interval = setInterval(fetchActiveRooms, 5000);
+    return () => clearInterval(interval);
+  }, [socket]);
+  
+  // Unirse a sala desde la lista
+  const handleJoinRoom = (code) => {
+    setRoomId(code);
+    setShowRooms(false);
+  };
 
   // Crear partida
   const handleCreate = async () => {
@@ -34,9 +66,10 @@ export function TimesUpLobbyView({ onNavigate }) {
 
     console.log('Creando partida timesup:', { teamCount, withSounds, playerName });
 
+    const sessionId = getSessionId();
     try {
       const result = await new Promise((resolve, reject) => {
-        socket.emit('timesup-create', { teamCount, withSounds, playerName }, (response) => {
+        socket.emit('timesup-create', { teamCount, withSounds, playerName, sessionId }, (response) => {
           console.log('timesup-create response:', response);
           if (response.success) resolve(response);
           else reject(new Error(response.error));
@@ -48,6 +81,7 @@ export function TimesUpLobbyView({ onNavigate }) {
       sessionStorage.setItem('timesup_roomId', result.roomId);
       sessionStorage.setItem('timesup_host', socket.id);
       sessionStorage.setItem('timesup_playerId', socket.id); // Guardar playerId para rejoin
+      sessionStorage.setItem('timesup_sessionId', sessionId); // Guardar sessionId para rejoin
       setInRoom(true);
       setIsHost(true);
       setPlayers([{ id: socket.id, name: playerName, isHost: true }]);
@@ -74,13 +108,15 @@ export function TimesUpLobbyView({ onNavigate }) {
     console.log('roomId enviado:', roomIdUpper);
     console.log('playerName:', playerName);
 
+    const sessionId = getSessionId();
     try {
       const result = await new Promise((resolve, reject) => {
         socket.emit('timesup-join', {
           roomId: roomIdUpper,
           playerName,
           avatarStyle: 'avataaars',
-          avatarSeed: playerName
+          avatarSeed: playerName,
+          sessionId
         }, (response) => {
           console.log('=== RESPUESTA DEL SERVIDOR ===');
           console.log('response:', response);
@@ -100,6 +136,7 @@ export function TimesUpLobbyView({ onNavigate }) {
       sessionStorage.setItem('timesup_roomId', normalizedRoomId);
       sessionStorage.setItem('timesup_host', result.room.host);
       sessionStorage.setItem('timesup_playerId', socket.id); // Guardar playerId para rejoin
+      sessionStorage.setItem('timesup_sessionId', sessionId); // Guardar sessionId para rejoin
       console.log('Guardado en sessionStorage:', normalizedRoomId);
       setPlayers(result.room.players.map(p => ({ 
         id: p.id, 
@@ -308,6 +345,48 @@ export function TimesUpLobbyView({ onNavigate }) {
               <span className="text-gray-500 text-sm">o</span>
               <div className="flex-1 h-px bg-gray-700"></div>
             </div>
+            
+            {/* Botón ver salas activas */}
+            <button
+              type="button"
+              onClick={() => setShowRooms(!showRooms)}
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <span>📋</span>
+              <span>{showRooms ? 'Ocultar Salas' : `Ver Salas Activas (${activeRooms.length})`}</span>
+            </button>
+            
+            {/* Lista de salas activas */}
+            {showRooms && activeRooms.length > 0 && (
+              <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700 space-y-2">
+                <h3 className="text-gray-400 text-sm font-medium mb-3">Salas disponibles</h3>
+                {activeRooms.map(room => (
+                  <button
+                    key={room.id}
+                    type="button"
+                    onClick={() => handleJoinRoom(room.id)}
+                    className="w-full bg-gray-700 hover:bg-gray-600 rounded-lg p-3 text-left transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <span className="text-white font-medium">{room.id}</span>
+                        <span className="text-gray-400 text-sm ml-2">Host: {room.hostName}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-indigo-400 font-medium">{room.playerCount} jugadores</span>
+                        <span className="text-gray-500 text-xs ml-2">{room.teamCount} equipos</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            
+            {showRooms && activeRooms.length === 0 && (
+              <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700 text-center">
+                <p className="text-gray-400">No hay salas disponibles</p>
+              </div>
+            )}
           </div>
         )}
 

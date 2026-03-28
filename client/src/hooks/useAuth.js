@@ -5,7 +5,21 @@ import { api, setApiToken, ENDPOINTS } from '../api/index.js';
 const STORAGE_KEYS = {
   TOKEN: 'auth_token',
   USER: 'auth_user',
-  GUEST: 'guest_session'
+  GUEST: 'guest_session',
+  SESSION_ID: 'user_session_id'
+};
+
+/**
+ * Generar o obtener sessionId existente
+ * Este ID persiste entre conexiones para permitir reconexión
+ */
+const getOrCreateSessionId = () => {
+  let sessionId = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+  }
+  return sessionId;
 };
 
 /**
@@ -54,6 +68,9 @@ export function useAuth() {
   // Verificar si hay una sesión guardada al iniciar
   useEffect(() => {
     const initializeAuth = async () => {
+      // 0. Siempre generar/obtener sessionId para persistencia de sala
+      getOrCreateSessionId();
+      
       // 1. Verificar sesión de usuario registrado
       const savedToken = localStorage.getItem(STORAGE_KEYS.TOKEN);
       const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
@@ -221,6 +238,13 @@ export function useAuth() {
     setUser(prev => prev ? { ...prev, ...updates } : null);
   }, []);
   
+  /**
+   * Obtener el sessionId actual
+   */
+  const getSessionId = useCallback(() => {
+    return getOrCreateSessionId();
+  }, []);
+
   return {
     user,
     token,
@@ -232,6 +256,7 @@ export function useAuth() {
     logout,
     loginAsGuest,
     updateUser,
+    getSessionId,
     isAuthenticated: !!token && !!user
   };
 }

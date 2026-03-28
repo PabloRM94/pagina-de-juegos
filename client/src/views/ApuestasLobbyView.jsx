@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
-import { getSocket } from '../hooks/useSocket.js';
+import { getSocket, saveRoomInfo } from '../hooks/useSocket.js';
 import Avatar from '../components/Avatar.jsx';
 import { CopyButton } from '../components/index.js';
 import { VIEWS } from '../constants/views.js';
+
+/**
+ * Obtener sessionId del localStorage
+ */
+const getSessionId = () => {
+  return localStorage.getItem('user_session_id');
+};
 
 export default function ApuestasLobbyView({ onNavigate }) {
   const socket = getSocket();
@@ -12,6 +19,31 @@ export default function ApuestasLobbyView({ onNavigate }) {
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [isJoining, setIsJoining] = useState(false);
+  const [activeRooms, setActiveRooms] = useState([]);
+  const [showRooms, setShowRooms] = useState(false);
+  
+  // Obtener salas activas al montar el componente
+  useEffect(() => {
+    const fetchActiveRooms = () => {
+      socket.emit('apuestas-get-active-rooms', {}, (response) => {
+        if (response.success) {
+          setActiveRooms(response.rooms || []);
+        }
+      });
+    };
+    
+    fetchActiveRooms();
+    
+    // Actualizar cada 5 segundos
+    const interval = setInterval(fetchActiveRooms, 5000);
+    return () => clearInterval(interval);
+  }, [socket]);
+  
+  // Unirse a sala desde la lista
+  const handleJoinFromList = (code) => {
+    setRoomCode(code);
+    setShowRooms(false);
+  };
 
   // Escuchar eventos de socket
   useEffect(() => {
@@ -87,16 +119,21 @@ export default function ApuestasLobbyView({ onNavigate }) {
       return;
     }
 
+    const sessionId = getSessionId();
     socket.emit('apuestas-create', {
       playerName: playerName.trim(),
       avatarStyle: 'adventurer',
-      avatarSeed: playerName.trim()
+      avatarSeed: playerName.trim(),
+      sessionId
     }, (response) => {
       if (response.success) {
         setRoom(response.room);
         setPlayer(response.room.players[0]);
         window.__apuestasRoom = response.room;
         window.__apuestasPlayer = response.room.players[0];
+        // Guardar info para reconexión
+        sessionStorage.setItem('apuestas_roomId', response.room.id);
+        sessionStorage.setItem('apuestas_sessionId', sessionId);
         setError('');
       } else {
         setError(response.error);
@@ -110,18 +147,23 @@ export default function ApuestasLobbyView({ onNavigate }) {
       return;
     }
 
+    const sessionId = getSessionId();
     setIsJoining(true);
     socket.emit('apuestas-join', {
       roomId: roomCode.trim().toUpperCase(),
       playerName: playerName.trim(),
       avatarStyle: 'adventurer',
-      avatarSeed: playerName.trim()
+      avatarSeed: playerName.trim(),
+      sessionId
     }, (response) => {
       if (response.success) {
         setRoom(response.room);
         setPlayer(response.player);
         window.__apuestasRoom = response.room;
         window.__apuestasPlayer = response.player;
+        // Guardar info para reconexión
+        sessionStorage.setItem('apuestas_roomId', response.room.id);
+        sessionStorage.setItem('apuestas_sessionId', sessionId);
         setError('');
       } else {
         setError(response.error);
@@ -257,13 +299,53 @@ export default function ApuestasLobbyView({ onNavigate }) {
             <span className="text-gray-500">o</span>
             <div className="flex-1 h-px bg-gray-700"></div>
           </div>
+          
+          {/* Botón ver salas activas */}
+          <button
+            onClick={() => setShowRooms(!showRooms)}
+            className="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold flex items-center justify-center gap-2"
+          >
+            <span>📋</span>
+            <span>{showRooms ? 'Ocultar Salas' : `Ver Salas Activas (${activeRooms.length})`}</span>
+          </button>
+          
+          {/* Lista de salas activas */}
+          {showRooms && activeRooms.length > 0 && (
+            <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700 space-y-2 mt-4">
+              <h3 className="text-gray-400 text-sm font-medium mb-3">Salas disponibles</h3>
+              {activeRooms.map(room => (
+                <button
+                  key={room.id}
+                  onClick={() => handleJoinFromList(room.id)}
+                  className="w-full bg-gray-700 hover:bg-gray-600 rounded-lg p-3 text-left transition-colors"
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-white font-medium">{room.id}</span>
+                      <span className="text-gray-400 text-sm ml-2">Host: {room.hostName}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-green-400 font-medium">{room.playerCount} jugadores</span>
+                      <span className="text-gray-500 text-xs ml-2">{room.rounds} rondas</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {showRooms && activeRooms.length === 0 && (
+            <div className="bg-gray-800/50 rounded-2xl p-4 border border-gray-700 text-center mt-4">
+              <p className="text-gray-400">No hay salas disponibles</p>
+            </div>
+          )}
 
           <input
             type="text"
             placeholder="Código de sala"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-            className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-center text-xl tracking-widest"
+            className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg text-white text-center text-xl tracking-widest mt-4"
             maxLength={8}
           />
 

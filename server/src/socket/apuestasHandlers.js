@@ -11,14 +11,15 @@ export const setupApuestasSocketHandlers = (io, socket, apuestasRooms) => {
 
   // APUESTAS - CREAR SALA
   socket.on('apuestas-create', (data, callback) => {
-    const { playerName, avatarStyle, avatarSeed } = data;
+    const { playerName, avatarStyle, avatarSeed, sessionId } = data;
     const roomId = generateRoomCode(apuestasRooms);
     
     const room = {
       id: roomId,
       host: socket.id,
+      hostSessionId: sessionId,
       gameType: 'apuestas',
-      players: [{ id: socket.id, name: playerName || 'Host', avatarStyle: avatarStyle || 'adventurer', avatarSeed: avatarSeed || playerName || 'Host', disconnectedAt: null }],
+      players: [{ id: socket.id, sessionId: sessionId, name: playerName || 'Host', avatarStyle: avatarStyle || 'adventurer', avatarSeed: avatarSeed || playerName || 'Host', disconnectedAt: null }],
       state: 'lobby',
       config: { targetNumber: null, rounds: 1, currentRound: 1 },
       game: { roundStartTime: null, stoppedPlayers: {}, roundWinners: [] },
@@ -31,16 +32,37 @@ export const setupApuestasSocketHandlers = (io, socket, apuestasRooms) => {
 
   // APUESTAS - UNIRSE
   socket.on('apuestas-join', (data, callback) => {
-    const { roomId, playerName, avatarStyle, avatarSeed } = data;
+    const { roomId, playerName, avatarStyle, avatarSeed, sessionId } = data;
     const room = apuestasRooms.get(roomId.toUpperCase());
     
     if (!room || room.gameType !== 'apuestas') { cb(callback, { success: false, error: 'Sala de Apuestas no encontrada' }); return; }
     if (room.state !== 'lobby') { cb(callback, { success: false, error: 'El juego ya ha comenzado' }); return; }
     
-    const existingPlayer = room.players.find(p => p.id === socket.id);
-    if (existingPlayer) { cb(callback, { success: true, room, player: existingPlayer }); return; }
+    // Buscar por sessionId o socket.id
+    const existingPlayer = room.players.find(p => 
+      (sessionId && p.sessionId === sessionId) || p.id === socket.id
+    );
     
-    const player = { id: socket.id, name: playerName, avatarStyle: avatarStyle || 'adventurer', avatarSeed: avatarSeed || playerName };
+    if (existingPlayer) {
+      // Si estaba desconectado, restaurar conexión
+      if (existingPlayer.disconnectedAt) {
+        existingPlayer.disconnectedAt = null;
+        existingPlayer.id = socket.id;
+        existingPlayer.sessionId = sessionId;
+        existingPlayer.name = playerName;
+        console.log(`[apuestas-join] Jugador ${playerName} reconectado a sala ${roomId} por sessionId: ${sessionId}`);
+        cb(callback, { success: true, room, player: existingPlayer, reconnected: true });
+        io.emit('apuestas-player-joined', { roomId: room.id, player: { id: socket.id, name: playerName }, playerCount: room.players.length, roundWinners: room.game.roundWinners });
+        return;
+      }
+      
+      // Actualizar nombre
+      existingPlayer.name = playerName;
+      cb(callback, { success: true, room, player: existingPlayer });
+      return;
+    }
+    
+    const player = { id: socket.id, sessionId: sessionId, name: playerName, avatarStyle: avatarStyle || 'adventurer', avatarSeed: avatarSeed || playerName, disconnectedAt: null };
     room.players.push(player);
     
     cb(callback, { success: true, room, player });

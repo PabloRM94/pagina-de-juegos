@@ -2,7 +2,7 @@ import { setupApuestasSocketHandlers } from './apuestasHandlers.js';
 import { setupBeerpongSocketHandlers } from './beerpongHandlers.js';
 
 import { v4 as uuidv4 } from 'uuid';
-import { createRoom, addPlayerToRoom, removePlayerFromRooms, markPlayerDisconnected, cleanupDisconnectedPlayers, getActiveRooms, generateRoomCode } from './room.js';
+import { createRoom, addPlayerToRoom, removePlayerFromRooms, markPlayerDisconnected, cleanupDisconnectedPlayers, getActiveRooms, getTimesupActiveRooms, getApuestasActiveRooms, generateRoomCode } from './room.js';
 import { assignRandomRole, assignBalancedRole, resolveEncounter } from '../services/gameEngine.js';
 
 import { 
@@ -58,13 +58,14 @@ export function setupSocketHandlers(io) {
     
     // ==================== CREAR SALA ====================
     socket.on('create-room', (data, callback) => {
-      const room = createRoom(socket.id, rooms);
+      const { sessionId } = data || {};
+      const room = createRoom(socket.id, sessionId, rooms);
       
       rooms.set(room.id, room);
       socket.join(room.id);
       
       callback({ success: true, roomId: room.id, room });
-      console.log(`Sala ${room.id} creada por ${socket.id}`);
+      console.log(`Sala ${room.id} creada por ${socket.id} (sessionId: ${sessionId})`);
     });
     
     // ==================== OBTENER SALAS ACTIVAS ====================
@@ -73,9 +74,21 @@ export function setupSocketHandlers(io) {
       callback({ success: true, rooms: activeRooms });
     });
     
+    // ==================== TIME'S UP - OBTENER SALAS ACTIVAS ====================
+    socket.on('timesup-get-active-rooms', (data, callback) => {
+      const activeRooms = getTimesupActiveRooms(timesupRooms);
+      callback({ success: true, rooms: activeRooms });
+    });
+    
+    // ==================== APUESTAS - OBTENER SALAS ACTIVAS ====================
+    socket.on('apuestas-get-active-rooms', (data, callback) => {
+      const activeRooms = getApuestasActiveRooms(apuestasRooms);
+      callback({ success: true, rooms: activeRooms });
+    });
+    
     // ==================== UNIRSE A SALA ====================
     socket.on('join-room', (data, callback) => {
-      const { roomId, playerName, avatarStyle, avatarSeed } = data;
+      const { roomId, playerName, avatarStyle, avatarSeed, sessionId } = data;
       const room = rooms.get(roomId.toUpperCase());
       
       if (!room) {
@@ -91,17 +104,22 @@ export function setupSocketHandlers(io) {
       }
       
       // Verificar si el jugador ya está en la sala (conectado o desconectado)
-      const existingPlayer = room.players.find(p => p.id === socket.id);
+      // Primero buscar por sessionId (para reconexión), luego por socket.id
+      const existingPlayer = room.players.find(p => 
+        (sessionId && p.sessionId === sessionId) || p.id === socket.id
+      );
       
       if (existingPlayer) {
         // Si estaba desconectado, restaurar conexión
         if (existingPlayer.disconnectedAt) {
           existingPlayer.disconnectedAt = null;
+          existingPlayer.id = socket.id; // Actualizar socket.id
+          existingPlayer.sessionId = sessionId; // Asegurar sessionId
           existingPlayer.name = playerName;
           socket.join(roomId);
           callback({ success: true, room, player: existingPlayer, reconnected: true });
           io.emit('room-updated', room);
-          console.log(`[join-room] Jugador ${playerName} reconectado a sala ${roomId}`);
+          console.log(`[join-room] Jugador ${playerName} reconectado a sala ${roomId} por sessionId: ${sessionId}`);
           return;
         }
         
@@ -112,18 +130,18 @@ export function setupSocketHandlers(io) {
       }
       
       // Agregar jugador nuevo
-      const player = addPlayerToRoom(room, socket.id, playerName, avatarStyle, avatarSeed);
+      const player = addPlayerToRoom(room, socket.id, sessionId, playerName, avatarStyle, avatarSeed);
       
       socket.join(roomId);
       
       callback({ success: true, room, player });
       io.emit('room-updated', room);
-      console.log(`${playerName} se unió a la sala ${roomId}`);
+      console.log(`${playerName} se unió a la sala ${roomId} (sessionId: ${sessionId})`);
     });
     
     // ==================== SALIR DE SALA ====================
     socket.on('leave-room', (data, callback) => {
-      const { roomId } = data;
+      const { roomId, sessionId } = data;
       const room = rooms.get(roomId);
       
       if (!room) {
@@ -131,8 +149,10 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      // Buscar jugador
-      const player = room.players.find(p => p.id === socket.id);
+      // Buscar jugador por socketId o sessionId
+      const player = room.players.find(p => 
+        p.id === socket.id || (sessionId && p.sessionId === sessionId)
+      );
       
       if (!player) {
         callback({ success: false, error: 'No estás en esta sala' });
@@ -424,18 +444,20 @@ export function setupSocketHandlers(io) {
     
     // ==================== TIME'S UP - CREAR PARTIDA ====================
     socket.on('timesup-create', (data, callback) => {
-      const { teamCount, withSounds, playerName } = data;
+      const { teamCount, withSounds, playerName, sessionId } = data;
       const roomId = generateRoomCode(timesupRooms);
       
-      console.log('=== timesup-create ===', { roomId, teamCount, withSounds, socketId: socket.id, playerName });
+      console.log('=== timesup-create ===', { roomId, teamCount, withSounds, socketId: socket.id, playerName, sessionId });
       
       // Crear sala de Time's Up - guardada en timesupRooms separada
       const timesupRoom = {
         id: roomId,
         host: socket.id,
+        hostSessionId: sessionId, // Guardar sessionId del host
         gameType: 'timesup',
         players: [{
           id: socket.id,
+          sessionId: sessionId,
           name: playerName || 'Host',
           avatarStyle: 'avataaars',
           avatarSeed: playerName || 'Host',
@@ -452,13 +474,13 @@ export function setupSocketHandlers(io) {
       console.log('Sala timesup creada:', roomId, 'en timesupRooms:', Array.from(timesupRooms.keys()));
       
       callback({ success: true, roomId: timesupRoom.id, room: timesupRoom });
-      console.log(`Time's Up creado en sala ${timesupRoom.id} por ${socket.id}`);
+      console.log(`Time's Up creado en sala ${timesupRoom.id} por ${socket.id} (sessionId: ${sessionId})`);
     });
     
     // ==================== TIME'S UP - UNIRSE ====================
     socket.on('timesup-join', (data, callback) => {
-      const { roomId, playerName, avatarStyle, avatarSeed } = data;
-      console.log('=== timesup-join ===', { roomId, playerName, socketId: socket.id });
+      const { roomId, playerName, avatarStyle, avatarSeed, sessionId } = data;
+      console.log('=== timesup-join ===', { roomId, playerName, socketId: socket.id, sessionId });
       console.log('TimesupRooms disponibles:', Array.from(timesupRooms.keys()));
       
       // Buscar en timesupRooms en lugar de rooms
@@ -476,19 +498,44 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      // Agregar jugador directamente a la sala de Time's Up
+      // Verificar si el jugador ya existe (buscar por sessionId o socket.id)
+      const existingPlayer = room.players.find(p => 
+        (sessionId && p.sessionId === sessionId) || p.id === socket.id
+      );
+      
+      if (existingPlayer) {
+        // Si estaba desconectado, restaurar conexión
+        if (existingPlayer.disconnectedAt) {
+          existingPlayer.disconnectedAt = null;
+          existingPlayer.id = socket.id;
+          existingPlayer.sessionId = sessionId;
+          existingPlayer.name = playerName;
+          console.log(`[timesup-join] Jugador ${playerName} reconectado a sala ${roomId} por sessionId: ${sessionId}`);
+          callback({ success: true, room, player: existingPlayer, reconnected: true });
+          io.emit('timesup-player-joined', { 
+            player: { id: socket.id, name: playerName },
+            playerCount: room.players.length
+          });
+          return;
+        }
+        
+        // Actualizar nombre
+        existingPlayer.name = playerName;
+        callback({ success: true, room, player: existingPlayer });
+        return;
+      }
+      
+      // Agregar jugador nuevo
       const player = {
         id: socket.id,
+        sessionId: sessionId,
         name: playerName,
         avatarStyle: avatarStyle || 'avataaars',
-        avatarSeed: avatarSeed || playerName
+        avatarSeed: avatarSeed || playerName,
+        disconnectedAt: null
       };
       
-      // Verificar si el jugador ya existe
-      const existingPlayer = room.players.find(p => p.id === socket.id);
-      if (!existingPlayer) {
-        room.players.push(player);
-      }
+      room.players.push(player);
       
       console.log('Jugador unido:', playerName, 'Total jugadores:', room.players.length);
       
@@ -499,7 +546,7 @@ export function setupSocketHandlers(io) {
         player: { id: socket.id, name: playerName },
         playerCount: room.players.length
       });
-      console.log(`${playerName} se unió a Time's Up en sala ${roomId}`);
+      console.log(`${playerName} se unió a Time's Up en sala ${roomId} (sessionId: ${sessionId})`);
     });
     
     // ==================== TIME'S UP - ASIGNAR CAPITANES ====================
@@ -1166,7 +1213,7 @@ export function setupSocketHandlers(io) {
 
     // ==================== TIME'S UP - REJOIN ====================
     socket.on('timesup-rejoin', (data, callback) => {
-      const { roomId, playerId } = data;
+      const { roomId, sessionId } = data;
       const room = timesupRooms.get(roomId.toUpperCase());
       
       if (!room || room.gameType !== 'timesup') {
@@ -1174,14 +1221,26 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      // Verificar que el jugador estaba en la sala
-      const player = room.timesup.teams.flatMap(t => t.players).find(p => p.id === playerId);
+      // Buscar jugador en la sala por sessionId o socket.id
+      const player = room.players.find(p => 
+        (sessionId && p.sessionId === sessionId) || p.id === socket.id
+      );
+      
       if (!player) {
         callback({ success: false, error: 'Jugador no encontrado en la sala' });
         return;
       }
       
-      console.log('[timesup-rejoin] Jugador re-conectado:', playerId, 'Sala:', roomId);
+      // Restaurar conexión si estaba desconectado
+      if (player.disconnectedAt) {
+        player.disconnectedAt = null;
+        player.id = socket.id;
+        console.log('[timesup-rejoin] Jugador reconectado:', socket.id, 'sessionId:', sessionId, 'Sala:', roomId);
+        io.emit('timesup-player-joined', { 
+          player: { id: socket.id, name: player.name },
+          playerCount: room.players.length
+        });
+      }
       
       callback({ 
         success: true, 
@@ -1197,7 +1256,7 @@ export function setupSocketHandlers(io) {
 
     // ==================== ESCONDITE - REJOIN ====================
     socket.on('rejoin-room', (data, callback) => {
-      const { roomId } = data;
+      const { roomId, sessionId } = data;
       const room = rooms.get(roomId.toUpperCase());
       
       if (!room) {
@@ -1205,7 +1264,10 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      const player = room.players.find(p => p.id === socket.id);
+      // Buscar por sessionId o socket.id
+      const player = room.players.find(p => 
+        (sessionId && p.sessionId === sessionId) || p.id === socket.id
+      );
       if (!player) {
         callback({ success: false, error: 'Jugador no encontrado en la sala' });
         return;
@@ -1214,10 +1276,11 @@ export function setupSocketHandlers(io) {
       // Restaurar conexión si estaba desconectado
       if (player.disconnectedAt) {
         player.disconnectedAt = null;
+        player.id = socket.id; // Actualizar socket.id
         socket.join(roomId);
         io.to(roomId).emit('room-updated', room);
         io.to(roomId).emit('player-reconnected', { playerId: socket.id, player });
-        console.log('[rejoin-room] Jugador reconectado:', socket.id, 'Sala:', roomId);
+        console.log('[rejoin-room] Jugador reconectado:', socket.id, 'sessionId:', sessionId, 'Sala:', roomId);
       }
       
       callback({ success: true, room });
@@ -1225,7 +1288,7 @@ export function setupSocketHandlers(io) {
 
     // ==================== APUESTAS - REJOIN ====================
     socket.on('apuestas-rejoin', (data, callback) => {
-      const { roomId, playerId } = data;
+      const { roomId, sessionId } = data;
       const room = apuestasRooms.get(roomId.toUpperCase());
       
       if (!room) {
@@ -1233,13 +1296,23 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      const player = room.players.find(p => p.id === playerId);
+      // Buscar por sessionId o socket.id
+      const player = room.players.find(p => 
+        (sessionId && p.sessionId === sessionId) || p.id === socket.id
+      );
+      
       if (!player) {
         callback({ success: false, error: 'Jugador no encontrado en la sala' });
         return;
       }
       
-      console.log('[apuestas-rejoin] Jugador re-conectado:', playerId, 'Sala:', roomId);
+      // Restaurar conexión si estaba desconectado
+      if (player.disconnectedAt) {
+        player.disconnectedAt = null;
+        player.id = socket.id;
+        console.log('[apuestas-rejoin] Jugador reconectado:', socket.id, 'sessionId:', sessionId, 'Sala:', roomId);
+        io.emit('apuestas-player-joined', { roomId: room.id, player: { id: socket.id, name: player.name }, playerCount: room.players.length, roundWinners: room.game.roundWinners });
+      }
       
       callback({ 
         success: true, 
@@ -1264,7 +1337,8 @@ export function setupSocketHandlers(io) {
       console.log('socket.id:', socket.id);
       console.log('reason:', reason);
       
-      // Marcar como desconectado en lugar de eliminar
+      // Por ahora solo marcamos por socket.id
+      // El sessionId no está disponible en disconnect, se maneja en reconexión
       const affectedRoom = markPlayerDisconnected(rooms, socket.id);
       
       if (affectedRoom) {

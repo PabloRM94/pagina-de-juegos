@@ -26,16 +26,19 @@ export function generateRoomCode(rooms) {
 /**
  * Crea una nueva sala
  * @param {string} socketId - ID del socket del host
+ * @param {string} sessionId - ID de sesión del cliente (para reconexiones)
  * @param {Map} rooms - Map de salas existentes (para generar código único)
  * @returns {object} - Sala creada
  */
-export function createRoom(socketId, rooms = new Map()) {
+export function createRoom(socketId, sessionId, rooms = new Map()) {
   const roomId = generateRoomCode(rooms);
   const room = {
     id: roomId,
     host: socketId,
+    hostSessionId: sessionId, // Guardar sessionId del host para reconexiones
     players: [{
       id: socketId,
+      sessionId: sessionId,
       name: 'Host',
       isHidden: false,
       isAlive: true,
@@ -55,17 +58,19 @@ export function createRoom(socketId, rooms = new Map()) {
  * Agrega un jugador a una sala
  * @param {object} room - Sala
  * @param {string} socketId - ID del socket
+ * @param {string} sessionId - ID de sesión del cliente (para reconexiones)
  * @param {string} playerName - Nombre del jugador
  * @param {string} avatarStyle - Estilo de avatar
  * @param {string} avatarSeed - Seed de avatar
  * @returns {object|null} - Jugador agregado o null si no se pudo
  */
-export function addPlayerToRoom(room, socketId, playerName, avatarStyle, avatarSeed) {
+export function addPlayerToRoom(room, socketId, sessionId, playerName, avatarStyle, avatarSeed) {
   // Verificar si el juego ya comenzó (todos escondidos)
   const gameStarted = (room.state === 'ready' || room.state === 'playing');
   
   const player = {
     id: socketId,
+    sessionId: sessionId,
     name: playerName,
     avatarStyle,
     avatarSeed,
@@ -95,16 +100,30 @@ export function addPlayerToRoom(room, socketId, playerName, avatarStyle, avatarS
 }
 
 /**
+ * Busca un jugador en una sala por socketId O sessionId
+ * @param {object} room - Sala
+ * @param {string} socketId - ID del socket
+ * @param {string} sessionId - ID de sesión
+ * @returns {object|null} - Jugador encontrado o null
+ */
+export function findPlayerInRoom(room, socketId, sessionId) {
+  return room.players.find(p => 
+    p.id === socketId || (sessionId && p.sessionId === sessionId)
+  );
+}
+
+/**
  * Marca un jugador como desconectado (en lugar de eliminarlo)
  * @param {Map} rooms - Map de salas
  * @param {string} socketId - ID del socket
+ * @param {string} sessionId - ID de sesión (opcional, para búsquedas)
  * @returns {object|null} - Sala donde se marcó al jugador, o null
  */
-export function markPlayerDisconnected(rooms, socketId) {
+export function markPlayerDisconnected(rooms, socketId, sessionId = null) {
   let affectedRoom = null;
   
   rooms.forEach((room, roomId) => {
-    const player = room.players.find(p => p.id === socketId);
+    const player = findPlayerInRoom(room, socketId, sessionId);
     if (player) {
       player.disconnectedAt = Date.now();
       affectedRoom = room;
@@ -223,11 +242,61 @@ export function getActiveRooms(rooms) {
   return activeRooms;
 }
 
+/**
+ * Obtiene lista de salas activas de Time's Up
+ * @param {Map} timesupRooms - Map de salas de Time's Up
+ * @returns {Array} - Array de salas con info resumida
+ */
+export function getTimesupActiveRooms(timesupRooms) {
+  const activeRooms = [];
+  
+  timesupRooms.forEach((room, roomId) => {
+    // Solo mostrar salas en lobby o team-names
+    if (room.timesup.state === 'lobby' || room.timesup.state === 'team-names') {
+      activeRooms.push({
+        id: room.id,
+        playerCount: room.players.length,
+        state: room.timesup.state,
+        teamCount: room.timesup.config.teamCount,
+        hostName: room.players.find(p => p.id === room.host)?.name || 'Host'
+      });
+    }
+  });
+  
+  return activeRooms;
+}
+
+/**
+ * Obtiene lista de salas activas de Apuestas
+ * @param {Map} apuestasRooms - Map de salas de Apuestas
+ * @returns {Array} - Array de salas con info resumida
+ */
+export function getApuestasActiveRooms(apuestasRooms) {
+  const activeRooms = [];
+  
+  apuestasRooms.forEach((room, roomId) => {
+    // Solo mostrar salas en lobby
+    if (room.state === 'lobby') {
+      activeRooms.push({
+        id: room.id,
+        playerCount: room.players.length,
+        state: room.state,
+        rounds: room.config.rounds,
+        hostName: room.players.find(p => p.id === room.host)?.name || 'Host'
+      });
+    }
+  });
+  
+  return activeRooms;
+}
+
 export default {
   createRoom,
   addPlayerToRoom,
   removePlayerFromRooms,
   markPlayerDisconnected,
   cleanupDisconnectedPlayers,
-  getActiveRooms
+  getActiveRooms,
+  getTimesupActiveRooms,
+  getApuestasActiveRooms
 };
