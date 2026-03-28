@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSocket } from '../hooks/index.js';
 import { VIEWS } from '../constants/index.js';
+import { BeerpongTimerModal } from '../components/BeerpongTimerModal.jsx';
 
 /**
  * Vista del Bracket de BeerPong Tournament
@@ -20,6 +21,16 @@ export function BeerpongBracketView({ onNavigate }) {
   const [state, setState] = useState('group');
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [error, setError] = useState('');
+  
+  // Timer states
+  const [showTimer, setShowTimer] = useState(false);
+  const [timer, setTimer] = useState({
+    matchId: null,
+    matchLabel: '',
+    duration: 600,
+    remaining: 600,
+    isRunning: false
+  });
 
   // Cargar bracket inicial
   useEffect(() => {
@@ -64,6 +75,72 @@ export function BeerpongBracketView({ onNavigate }) {
       socket.off('beerpong-bracket-updated', handleBracketUpdated);
     };
   }, [socket, roomId, onNavigate]);
+
+  // Escuchar actualizaciones del timer
+  useEffect(() => {
+    const handleTimerSync = (data) => {
+      if (data.roomId === roomId) {
+        setTimer(data.timer);
+      }
+    };
+
+    const handleTimerFinished = (data) => {
+      if (data.roomId === roomId) {
+        // Notificación cuando el timer termina
+        console.log('Timer finished for:', data.matchLabel);
+      }
+    };
+
+    socket.on('beerpong-timer-sync', handleTimerSync);
+    socket.on('beerpong-timer-finished', handleTimerFinished);
+
+    // Obtener timer actual al cargar
+    if (roomId) {
+      socket.emit('beerpong-get-timer', { roomId }, (response) => {
+        if (response.success) {
+          setTimer(response.timer);
+        }
+      });
+    }
+
+    return () => {
+      socket.off('beerpong-timer-sync', handleTimerSync);
+      socket.off('beerpong-timer-finished', handleTimerFinished);
+    };
+  }, [socket, roomId]);
+
+  // Funciones del timer
+  const handleSetTimerDuration = (minutes) => {
+    socket.emit('beerpong-set-timer-duration', { roomId, duration: minutes }, (response) => {
+      if (response.success) {
+        setTimer(response.timer);
+      }
+    });
+  };
+
+  const handleStartTimer = (matchId, matchLabel) => {
+    socket.emit('beerpong-start-timer', { roomId, matchId, matchLabel }, (response) => {
+      if (response.success) {
+        setTimer(response.timer);
+      }
+    });
+  };
+
+  const handlePauseTimer = () => {
+    socket.emit('beerpong-pause-timer', { roomId }, (response) => {
+      if (response.success) {
+        setTimer(response.timer);
+      }
+    });
+  };
+
+  const handleResumeTimer = () => {
+    socket.emit('beerpong-resume-timer', { roomId }, (response) => {
+      if (response.success) {
+        setTimer(response.timer);
+      }
+    });
+  };
 
   // Seleccionar partido para elegir winner
   const handleMatchClick = (stage, roundIndex, matchIndex, match) => {
@@ -347,6 +424,28 @@ export function BeerpongBracketView({ onNavigate }) {
               {state === 'group' ? 'Grupos' : state === 'knockout' ? 'Fase Final' : 'Finalizado'}
             </span>
           </div>
+
+          {/* Botón del Timer */}
+          <div className="flex justify-center mt-3">
+            <button
+              onClick={() => setShowTimer(true)}
+              className={`
+                px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2
+                ${timer.isRunning 
+                  ? 'bg-green-600 hover:bg-green-700 text-white animate-pulse' 
+                  : timer.remaining < timer.duration && timer.remaining > 0
+                    ? 'bg-yellow-600 hover:bg-yellow-700 text-white'
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }
+              `}
+            >
+              <span>⏱</span>
+              {timer.isRunning || (timer.remaining < timer.duration && timer.remaining > 0) 
+                ? `${Math.floor(timer.remaining / 60)}:${(timer.remaining % 60).toString().padStart(2, '0')}`
+                : 'Timer'
+              }
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -418,6 +517,17 @@ export function BeerpongBracketView({ onNavigate }) {
           </div>
         </div>
       )}
+
+      {/* Timer Modal */}
+      <BeerpongTimerModal
+        isOpen={showTimer}
+        timer={timer}
+        onClose={() => setShowTimer(false)}
+        onSetDuration={handleSetTimerDuration}
+        onStart={handleStartTimer}
+        onPause={handlePauseTimer}
+        onResume={handleResumeTimer}
+      />
     </div>
   );
 }

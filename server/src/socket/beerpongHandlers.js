@@ -676,7 +676,17 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
         teams: []
       },
       champion: null,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      // Timer por partido
+      matchTimer: {
+        matchId: null,
+        matchLabel: '',
+        duration: 600, // 10 minutos por defecto (en segundos)
+        remaining: 600,
+        isRunning: false,
+        startedAt: null,
+        intervalId: null
+      }
     };
     
     bepongRooms.set(roomId, bepongRoom);
@@ -811,6 +821,186 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
     }
     
     callback({ success: true, room });
+  });
+
+  // ===== TIMER HANDLERS =====
+
+  // Configurar duración del timer (en cualquier momento)
+  socket.on('beerpong-set-timer-duration', (data, callback) => {
+    const { roomId, duration } = data;
+    const room = bepongRooms.get(roomId.toUpperCase());
+    
+    if (!room || room.gameType !== 'beerpong') {
+      callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    // duration en minutos (1-60), convertir a segundos
+    const seconds = Math.max(60, Math.min(3600, duration * 60));
+    room.matchTimer.duration = seconds;
+    
+    // Si el timer no está corriendo, actualizar remaining también
+    if (!room.matchTimer.isRunning) {
+      room.matchTimer.remaining = seconds;
+    }
+    
+    callback({ success: true, timer: room.matchTimer });
+    
+    io.emit('beerpong-timer-sync', {
+      roomId: room.id,
+      timer: room.matchTimer
+    });
+  });
+
+  // Iniciar timer para un match específico
+  socket.on('beerpong-start-timer', (data, callback) => {
+    const { roomId, matchId, matchLabel } = data;
+    const room = bepongRooms.get(roomId.toUpperCase());
+    
+    if (!room || room.gameType !== 'beerpong') {
+      callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    // Limpiar intervalo anterior si existe
+    if (room.matchTimer.intervalId) {
+      clearInterval(room.matchTimer.intervalId);
+    }
+    
+    // Iniciar nuevo timer
+    room.matchTimer.matchId = matchId;
+    room.matchTimer.matchLabel = matchLabel || '';
+    room.matchTimer.remaining = room.matchTimer.duration;
+    room.matchTimer.isRunning = true;
+    room.matchTimer.startedAt = Date.now();
+    
+    // Crear intervalo para countdown
+    room.matchTimer.intervalId = setInterval(() => {
+      room.matchTimer.remaining -= 1;
+      
+      if (room.matchTimer.remaining <= 0) {
+        // Timer llegó a 0 - detener
+        room.matchTimer.remaining = 0;
+        room.matchTimer.isRunning = false;
+        if (room.matchTimer.intervalId) {
+          clearInterval(room.matchTimer.intervalId);
+          room.matchTimer.intervalId = null;
+        }
+        
+        // Emitir evento de timer finished
+        io.emit('beerpong-timer-finished', {
+          roomId: room.id,
+          matchId: room.matchTimer.matchId,
+          matchLabel: room.matchTimer.matchLabel
+        });
+      }
+      
+      // Broadcast sync cada segundo
+      io.emit('beerpong-timer-sync', {
+        roomId: room.id,
+        timer: room.matchTimer
+      });
+    }, 1000);
+    
+    callback({ success: true, timer: room.matchTimer });
+    
+    io.emit('beerpong-timer-sync', {
+      roomId: room.id,
+      timer: room.matchTimer
+    });
+  });
+
+  // Pausar timer
+  socket.on('beerpong-pause-timer', (data, callback) => {
+    const { roomId } = data;
+    const room = bepongRooms.get(roomId.toUpperCase());
+    
+    if (!room || room.gameType !== 'beerpong') {
+      callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    if (!room.matchTimer.isRunning) {
+      callback({ success: false, error: 'El timer no está corriendo' });
+      return;
+    }
+    
+    room.matchTimer.isRunning = false;
+    if (room.matchTimer.intervalId) {
+      clearInterval(room.matchTimer.intervalId);
+      room.matchTimer.intervalId = null;
+    }
+    
+    callback({ success: true, timer: room.matchTimer });
+    
+    io.emit('beerpong-timer-sync', {
+      roomId: room.id,
+      timer: room.matchTimer
+    });
+  });
+
+  // Reanudar timer
+  socket.on('beerpong-resume-timer', (data, callback) => {
+    const { roomId } = data;
+    const room = bepongRooms.get(roomId.toUpperCase());
+    
+    if (!room || room.gameType !== 'beerpong') {
+      callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    if (room.matchTimer.isRunning || room.matchTimer.remaining <= 0) {
+      callback({ success: false, error: 'El timer no puede ser reanudado' });
+      return;
+    }
+    
+    room.matchTimer.isRunning = true;
+    room.matchTimer.startedAt = Date.now();
+    
+    // Crear nuevo intervalo
+    room.matchTimer.intervalId = setInterval(() => {
+      room.matchTimer.remaining -= 1;
+      
+      if (room.matchTimer.remaining <= 0) {
+        room.matchTimer.remaining = 0;
+        room.matchTimer.isRunning = false;
+        if (room.matchTimer.intervalId) {
+          clearInterval(room.matchTimer.intervalId);
+          room.matchTimer.intervalId = null;
+        }
+        
+        io.emit('beerpong-timer-finished', {
+          roomId: room.id,
+          matchId: room.matchTimer.matchId,
+          matchLabel: room.matchTimer.matchLabel
+        });
+      }
+      
+      io.emit('beerpong-timer-sync', {
+        roomId: room.id,
+        timer: room.matchTimer
+      });
+    }, 1000);
+    
+    callback({ success: true, timer: room.matchTimer });
+    
+    io.emit('beerpong-timer-sync', {
+      roomId: room.id,
+      timer: room.matchTimer
+    });
+  });
+
+  // Obtener estado actual del timer
+  socket.on('beerpong-get-timer', (data, callback) => {
+    const { roomId } = data;
+    const room = bepongRooms.get(roomId.toUpperCase());
+    
+    if (!room || room.gameType !== 'beerpong') {
+      callback({ success: false, error: 'Sala no encontrada' });
+      return;
+    }
+    
+    callback({ success: true, timer: room.matchTimer });
   });
 }
 
