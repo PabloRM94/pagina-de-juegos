@@ -184,6 +184,13 @@ function stopHeartbeat() {
 }
 
 /**
+ * Obtener sessionId del localStorage
+ */
+const getSessionId = () => {
+  return localStorage.getItem('user_session_id');
+};
+
+/**
  * Iniciar intentos de rejoin cada 3 segundos cuando está desconectado
  */
 function startRejoinAttempts(socket) {
@@ -196,7 +203,7 @@ function startRejoinAttempts(socket) {
   
   if (!roomId) return;
   
-  console.log('[useSocket] Iniciando intentos de rejoin cada 3 segundos...');
+  console.log('[useSocket] Iniciando intentos de rejoin cada 3 segundos...', { roomId });
   
   reconnectInterval = setInterval(() => {
     if (socket.connected && !isRejoining) {
@@ -232,17 +239,21 @@ function attemptRejoinRoom(socket) {
   const roomId = sessionStorage.getItem('timesup_roomId') || 
                   sessionStorage.getItem('escondite_roomId') ||
                   sessionStorage.getItem('apuestas_roomId');
-  const playerId = sessionStorage.getItem('timesup_playerId') ||
-                   sessionStorage.getItem('escondite_playerId');
+  
+  // Obtener sessionId desde sessionStorage (guardado por cada juego)
+  const sessionId = sessionStorage.getItem('timesup_sessionId') ||
+                    sessionStorage.getItem('escondite_sessionId') ||
+                    sessionStorage.getItem('apuestas_sessionId') ||
+                    localStorage.getItem('user_session_id');
   
   if (!roomId) return;
   
-  console.log('[useSocket] Intentando re-join a sala:', roomId);
+  console.log('[useSocket] Intentando re-join a sala:', roomId, 'sessionId:', sessionId);
   
   // Determinar tipo de juego
   if (sessionStorage.getItem('timesup_roomId')) {
-    // Time's Up
-    socket.emit('timesup-rejoin', { roomId, playerId: socket.id }, (response) => {
+    // Time's Up - usa sessionId para rejoin
+    socket.emit('timesup-rejoin', { roomId, sessionId }, (response) => {
       if (response.success) {
         console.log('[useSocket] Re-join exitoso a Time\'s Up:', roomId);
       } else {
@@ -250,8 +261,8 @@ function attemptRejoinRoom(socket) {
       }
     });
   } else if (sessionStorage.getItem('escondite_roomId')) {
-    // Escondite
-    socket.emit('rejoin-room', { roomId }, (response) => {
+    // Escondite - usa sessionId para rejoin
+    socket.emit('rejoin-room', { roomId, sessionId }, (response) => {
       if (response.success) {
         console.log('[useSocket] Re-join exitoso a Escondite:', roomId);
       } else {
@@ -259,8 +270,8 @@ function attemptRejoinRoom(socket) {
       }
     });
   } else if (sessionStorage.getItem('apuestas_roomId')) {
-    // Apuestas
-    socket.emit('apuestas-rejoin', { roomId, playerId: socket.id }, (response) => {
+    // Apuestas - usa sessionId para rejoin
+    socket.emit('apuestas-rejoin', { roomId, sessionId }, (response) => {
       if (response.success) {
         console.log('[useSocket] Re-join exitoso a Apuestas:', roomId);
       } else {
@@ -273,12 +284,16 @@ function attemptRejoinRoom(socket) {
 /**
  * Guardar info de sala para re-join después de reconexión
  */
-export const saveRoomInfo = (gameType, roomId, playerId) => {
+export const saveRoomInfo = (gameType, roomId, playerId, sessionId) => {
   const key = `${gameType}_roomId`;
   const playerKey = `${gameType}_playerId`;
+  const sessionKey = `${gameType}_sessionId`;
   sessionStorage.setItem(key, roomId);
   if (playerId) {
     sessionStorage.setItem(playerKey, playerId);
+  }
+  if (sessionId) {
+    sessionStorage.setItem(sessionKey, sessionId);
   }
 };
 

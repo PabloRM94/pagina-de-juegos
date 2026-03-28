@@ -99,25 +99,34 @@ export function useGame(token) {
   }, [socket]);
 
   /**
+   * Obtener sessionId del localStorage
+   */
+  const getSessionId = () => {
+    return localStorage.getItem('user_session_id');
+  };
+
+  /**
    * Crear una sala
    */
   const createRoom = useCallback((playerName, avatarStyle, avatarSeed) => {
+    const sessionId = getSessionId();
     return new Promise((resolve) => {
-      socket.emit('create-room', {}, (response) => {
+      socket.emit('create-room', { sessionId }, (response) => {
         if (response.success) {
           // Unirse a la sala
           socket.emit('join-room', {
             roomId: response.roomId,
             playerName,
             avatarStyle,
-            avatarSeed
+            avatarSeed,
+            sessionId
           }, (joinResponse) => {
             if (joinResponse.success) {
               setRoom(joinResponse.room);
               setPlayer(joinResponse.player);
               
               // Guardar info de sala para reconexión
-              saveRoomInfo('escondite', joinResponse.room.id, socket.id);
+              saveRoomInfo('escondite', joinResponse.room.id, socket.id, sessionId);
             }
             resolve(joinResponse);
           });
@@ -132,19 +141,21 @@ export function useGame(token) {
    * Unirse a una sala
    */
   const joinRoom = useCallback((roomCode, playerName, avatarStyle, avatarSeed) => {
+    const sessionId = getSessionId();
     return new Promise((resolve) => {
       socket.emit('join-room', {
         roomId: roomCode.toUpperCase(),
         playerName,
         avatarStyle,
-        avatarSeed
+        avatarSeed,
+        sessionId
       }, (response) => {
         if (response.success) {
           setRoom(response.room);
           setPlayer(response.player);
           
           // Guardar info de sala para reconexión
-          saveRoomInfo('escondite', response.room.id, socket.id);
+          saveRoomInfo('escondite', response.room.id, socket.id, sessionId);
           
           // Detectar si se une tarde como espectador
           const joinedLate = response.room.state === 'playing';
