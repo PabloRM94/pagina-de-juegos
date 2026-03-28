@@ -694,11 +694,7 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       return;
     }
     
-    if (room.host !== socket.id) {
-      callback({ success: false, error: 'Solo el host puede añadir equipos' });
-      return;
-    }
-    
+    // Cualquier jugador puede añadir equipos (no solo el host)
     if (room.state !== 'setup') {
       callback({ success: false, error: 'El torneo ya ha comenzado' });
       return;
@@ -734,11 +730,7 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       return;
     }
     
-    if (room.host !== socket.id) {
-      callback({ success: false, error: 'Solo el host puede iniciar el torneo' });
-      return;
-    }
-    
+    // Cualquier jugador puede iniciar el torneo (no solo el host)
     if (room.teams.length !== room.config.teamsCount) {
       callback({ success: false, error: `Necesitas ${room.config.teamsCount} equipos` });
       return;
@@ -790,11 +782,7 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       return;
     }
     
-    if (room.host !== socket.id) {
-      callback({ success: false, error: 'Solo el host puede seleccionar ganadores' });
-      return;
-    }
-    
+    // Cualquier jugador puede seleccionar ganadores (no solo el host)
     room.bracket = processMatch(room.bracket, stage, roundIndex, matchIndex, winnerTeamId);
     
     if (room.bracket.champion) {
