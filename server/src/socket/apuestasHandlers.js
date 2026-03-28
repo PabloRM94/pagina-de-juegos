@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { generateRoomCode } from './room.js';
 
 // Handlers de Apuestas para socket.io
 
@@ -11,16 +12,17 @@ export const setupApuestasSocketHandlers = (io, socket, apuestasRooms) => {
   // APUESTAS - CREAR SALA
   socket.on('apuestas-create', (data, callback) => {
     const { playerName, avatarStyle, avatarSeed } = data;
-    const roomId = uuidv4().slice(0, 8).toUpperCase();
+    const roomId = generateRoomCode(apuestasRooms);
     
     const room = {
       id: roomId,
       host: socket.id,
       gameType: 'apuestas',
-      players: [{ id: socket.id, name: playerName || 'Host', avatarStyle: avatarStyle || 'adventurer', avatarSeed: avatarSeed || playerName || 'Host' }],
+      players: [{ id: socket.id, name: playerName || 'Host', avatarStyle: avatarStyle || 'adventurer', avatarSeed: avatarSeed || playerName || 'Host', disconnectedAt: null }],
       state: 'lobby',
       config: { targetNumber: null, rounds: 1, currentRound: 1 },
-      game: { roundStartTime: null, stoppedPlayers: {}, roundWinners: [] }
+      game: { roundStartTime: null, stoppedPlayers: {}, roundWinners: [] },
+      createdAt: Date.now()
     };
     
     apuestasRooms.set(roomId, room);

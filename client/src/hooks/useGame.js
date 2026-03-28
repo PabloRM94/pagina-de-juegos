@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { getSocket } from './useSocket.js';
+import { getSocket, saveRoomInfo } from './useSocket.js';
 
 /**
  * Hook para gestionar el estado del juego de escondite
@@ -88,6 +88,17 @@ export function useGame(token) {
   }, [socket, player]);
   
   /**
+   * Obtener salas activas
+   */
+  const getActiveRooms = useCallback(() => {
+    return new Promise((resolve) => {
+      socket.emit('get-active-rooms', {}, (response) => {
+        resolve(response);
+      });
+    });
+  }, [socket]);
+
+  /**
    * Crear una sala
    */
   const createRoom = useCallback((playerName, avatarStyle, avatarSeed) => {
@@ -104,6 +115,9 @@ export function useGame(token) {
             if (joinResponse.success) {
               setRoom(joinResponse.room);
               setPlayer(joinResponse.player);
+              
+              // Guardar info de sala para reconexión
+              saveRoomInfo('escondite', joinResponse.room.id, socket.id);
             }
             resolve(joinResponse);
           });
@@ -128,6 +142,9 @@ export function useGame(token) {
         if (response.success) {
           setRoom(response.room);
           setPlayer(response.player);
+          
+          // Guardar info de sala para reconexión
+          saveRoomInfo('escondite', response.room.id, socket.id);
           
           // Detectar si se une tarde como espectador
           const joinedLate = response.room.state === 'playing';
@@ -256,7 +273,8 @@ export function useGame(token) {
     clearGame,
     setLastEncounter,
     setEncounterDenied,
-    setGameFinished
+    setGameFinished,
+    getActiveRooms
   };
 }
 

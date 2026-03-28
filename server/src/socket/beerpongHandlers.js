@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { generateRoomCode } from './room.js';
 
 // ==================== UTILIDADES ====================
 
@@ -657,7 +658,7 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
   
   socket.on('beerpong-create', (data, callback) => {
     const { teamsCount, playersPerTeam, gameMode, playerName } = data;
-    const roomId = uuidv4().slice(0, 8).toUpperCase();
+    const roomId = generateRoomCode(bepongRooms);
     
     console.log('=== beerpong-create ===', { roomId, teamsCount, playersPerTeam, gameMode, socketId: socket.id });
     
@@ -674,7 +675,8 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
         knockout: { rounds: [] },
         teams: []
       },
-      champion: null
+      champion: null,
+      createdAt: Date.now()
     };
     
     bepongRooms.set(roomId, bepongRoom);

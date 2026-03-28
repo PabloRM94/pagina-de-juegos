@@ -5,6 +5,8 @@ import { SERVER_URL } from '../constants/views.js';
 // Singleton del socket
 let socketInstance = null;
 let heartbeatInterval = null;
+let reconnectInterval = null; // Interval para reintentar rejoin cada 3 segundos
+let isRejoining = false; // Flag para evitar múltiples reintentos simultáneos
 
 /**
  * Configuración de Socket.IO para mejor handling de background
@@ -48,6 +50,9 @@ export function useSocket(onEventCallbacks = {}) {
       setConnected(true);
       isReconnecting.current = false;
       
+      // Detener intentos de rejoin automáticos
+      stopRejoinAttempts();
+      
       // Intentar re-join a sala si estaba en una
       attemptRejoinRoom(socket);
     };
@@ -56,9 +61,10 @@ export function useSocket(onEventCallbacks = {}) {
       console.log('[useSocket] Desconectado:', reason);
       setConnected(false);
       
-      // Si la desconexión no fue intencional, marcar para re-conexión
+      // Si la desconexión no fue intencional, iniciar intentos de rejoin cada 3 segundos
       if (reason !== 'io client disconnect') {
         isReconnecting.current = true;
+        startRejoinAttempts(socket);
       }
     };
     
@@ -100,6 +106,7 @@ export function useSocket(onEventCallbacks = {}) {
       socket.off('reconnect_attempt', handleReconnectAttempt);
       socket.off('reconnect_failed', handleReconnectFailed);
       stopHeartbeat();
+      stopRejoinAttempts();
     };
   }, []);
   
@@ -173,6 +180,47 @@ function stopHeartbeat() {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
+  }
+}
+
+/**
+ * Iniciar intentos de rejoin cada 3 segundos cuando está desconectado
+ */
+function startRejoinAttempts(socket) {
+  if (reconnectInterval) return; // Ya hay un intervalo activo
+  
+  // Verificar si hay sala guardada
+  const roomId = sessionStorage.getItem('timesup_roomId') || 
+                  sessionStorage.getItem('escondite_roomId') ||
+                  sessionStorage.getItem('apuestas_roomId');
+  
+  if (!roomId) return;
+  
+  console.log('[useSocket] Iniciando intentos de rejoin cada 3 segundos...');
+  
+  reconnectInterval = setInterval(() => {
+    if (socket.connected && !isRejoining) {
+      isRejoining = true;
+      console.log('[useSocket] Intentando rejoin...');
+      
+      attemptRejoinRoom(socket);
+      
+      // Resetear flag después de un momento
+      setTimeout(() => {
+        isRejoining = false;
+      }, 2000);
+    }
+  }, 3000); // Cada 3 segundos
+}
+
+/**
+ * Detener intentos de rejoin
+ */
+function stopRejoinAttempts() {
+  if (reconnectInterval) {
+    clearInterval(reconnectInterval);
+    reconnectInterval = null;
+    console.log('[useSocket] Detenidos los intentos de rejoin');
   }
 }
 

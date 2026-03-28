@@ -91,7 +91,8 @@ export default function App() {
     setEncounterDenied,
     allies,
     gameFinished,
-    setGameFinished
+    setGameFinished,
+    getActiveRooms
   } = useGame(token);
   
   // === Socket Connection ===
@@ -810,6 +811,7 @@ export default function App() {
           setRoomCode={setRoomCode}
           allies={allies}
           gameFinished={gameFinished}
+          getActiveRooms={getActiveRooms}
         />
         <LogoutModal 
           isOpen={showLogoutModal}

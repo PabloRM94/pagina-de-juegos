@@ -181,22 +181,49 @@ router.put('/counter-types/:id', authenticateToken, async (req, res) => {
 
 /**
  * GET /api/counters/:userId
- * Obtiene los contadores de un usuario específico
+ * Obtiene los contadores ACUMULADOS de un usuario (suma de todos los registros)
  */
 router.get('/counters/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { date } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
     
-    let counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
+    // Sumar todos los contadores del usuario
+    const result = await db.prepare(`
+      SELECT 
+        COALESCE(SUM(cervezas), 0) as cervezas,
+        COALESCE(SUM(banos_piscina), 0) as banos_piscina,
+        COALESCE(SUM(agua_gas), 0) as agua_gas,
+        COALESCE(SUM(turbolatas), 0) as turbolatas
+      FROM counters 
+      WHERE user_id = ?
+    `).get(userId);
     
-    if (!counter) {
-      await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, targetDate);
-      counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, targetDate);
-    }
+    // Obtener custom counters de todos los registros y combinarlos
+    const customCountersRows = await db.prepare(
+      'SELECT custom_counters FROM counters WHERE user_id = ? AND custom_counters IS NOT NULL AND custom_counters != "{}"'
+    ).all(userId);
     
-    res.json({ success: true, counter });
+    // Combinar todos los contadores personalizados
+    const combinedCustom = {};
+    customCountersRows.forEach(row => {
+      try {
+        const parsed = JSON.parse(row.custom_counters || '{}');
+        Object.keys(parsed).forEach(key => {
+          combinedCustom[key] = (combinedCustom[key] || 0) + parsed[key];
+        });
+      } catch (e) {
+        // Ignorar errores de parse
+      }
+    });
+    
+    res.json({ 
+      success: true, 
+      counter: {
+        ...result,
+        custom_counters: JSON.stringify(combinedCustom),
+        total: true // Flag indicando que es el total acumulado
+      }
+    });
   } catch (error) {
     console.error('Error obteniendo contadores:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });
@@ -205,21 +232,56 @@ router.get('/counters/:userId', authenticateToken, async (req, res) => {
 
 /**
  * GET /api/counters
- * Obtiene todos los contadores del día (sin admins)
+ * Obtiene todos los contadores ACUMULADOS por usuario (sin admins)
  */
 router.get('/counters', authenticateToken, async (req, res) => {
   try {
-    const { date } = req.query;
-    const targetDate = date || new Date().toISOString().split('T')[0];
-    
+    // Obtener todos los contadores agrupados por usuario
     const counters = await db.prepare(`
-      SELECT c.*, u.name as user_name 
+      SELECT 
+        user_id,
+        u.name as user_name,
+        COALESCE(SUM(c.cervezas), 0) as cervezas,
+        COALESCE(SUM(c.banos_piscina), 0) as banos_piscina,
+        COALESCE(SUM(c.agua_gas), 0) as agua_gas,
+        COALESCE(SUM(c.turbolatas), 0) as turbolatas
       FROM counters c 
       JOIN users u ON c.user_id = u.id 
-      WHERE c.date = ? AND u.is_admin = 0
-    `).all(targetDate);
+      WHERE u.is_admin = 0
+      GROUP BY user_id
+    `).all();
     
-    res.json({ success: true, counters });
+    // Para cada usuario, obtener sus contadores personalizados combinados
+    const customCounters = await db.prepare(`
+      SELECT user_id, custom_counters 
+      FROM counters 
+      WHERE custom_counters IS NOT NULL AND custom_counters != "{}"
+    `).all();
+    
+    // Combinar custom counters por usuario
+    const customByUser = {};
+    customCounters.forEach(row => {
+      if (!customByUser[row.user_id]) {
+        customByUser[row.user_id] = {};
+      }
+      try {
+        const parsed = JSON.parse(row.custom_counters || '{}');
+        Object.keys(parsed).forEach(key => {
+          customByUser[row.user_id][key] = (customByUser[row.user_id][key] || 0) + parsed[key];
+        });
+      } catch (e) {
+        // Ignorar
+      }
+    });
+    
+    // Agregar custom counters a cada resultado
+    const result = counters.map(c => ({
+      ...c,
+      custom_counters: JSON.stringify(customByUser[c.user_id] || {}),
+      total: true
+    }));
+    
+    res.json({ success: true, counters: result });
   } catch (error) {
     console.error('Error obteniendo contadores:', error);
     res.status(500).json({ success: false, error: 'Error en el servidor' });
@@ -228,22 +290,23 @@ router.get('/counters', authenticateToken, async (req, res) => {
 
 /**
  * POST /api/counters/:userId
- * Actualiza un contador
+ * Actualiza un contador (acumulado, sin crear nuevos por fecha)
  */
 router.post('/counters/:userId', authenticateToken, async (req, res) => {
   try {
     const { userId } = req.params;
     const { counterType, action } = req.body;
-    const today = new Date().toISOString().split('T')[0];
     
     const fixedCounters = ['cervezas', 'banos_piscina', 'agua_gas', 'turbolatas'];
     const isFixed = fixedCounters.includes(counterType);
     
-    let counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
+    // Obtener el registro más reciente del usuario (o crear uno si no existe)
+    let counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
     
     if (!counter) {
+      const today = new Date().toISOString().split('T')[0];
       await db.prepare('INSERT INTO counters (user_id, date) VALUES (?, ?)').run(userId, today);
-      counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? AND date = ?').get(userId, today);
+      counter = await db.prepare('SELECT * FROM counters WHERE user_id = ? ORDER BY id DESC LIMIT 1').get(userId);
     }
     
     let newValue;
@@ -252,20 +315,21 @@ router.post('/counters/:userId', authenticateToken, async (req, res) => {
     if (isFixed) {
       oldValue = counter[counterType] || 0;
       newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
-      await db.prepare(`UPDATE counters SET ${counterType} = ? WHERE user_id = ? AND date = ?`).run(newValue, userId, today);
+      await db.prepare(`UPDATE counters SET ${counterType} = ? WHERE id = ?`).run(newValue, counter.id);
     } else {
       const customCounters = JSON.parse(counter.custom_counters || '{}');
       oldValue = customCounters[counterType] || 0;
       newValue = action === 'increment' ? oldValue + 1 : Math.max(0, oldValue - 1);
       customCounters[counterType] = newValue;
-      await db.prepare(`UPDATE counters SET custom_counters = ? WHERE user_id = ? AND date = ?`).run(JSON.stringify(customCounters), userId, today);
+      await db.prepare(`UPDATE counters SET custom_counters = ? WHERE id = ?`).run(JSON.stringify(customCounters), counter.id);
     }
     
+    // Guardar en historial
     await db.prepare(`INSERT INTO counter_history (user_id, counter_type, old_value, new_value) VALUES (?, ?, ?, ?)`).run(userId, counterType, oldValue, newValue);
     
     // Notificar a todos los clientes
     if (req.app.get('io')) {
-      req.app.get('io').emit('counter-updated', { userId, counterType, newValue, date: today });
+      req.app.get('io').emit('counter-updated', { userId, counterType, newValue, total: true });
     }
     
     res.json({ success: true, newValue });

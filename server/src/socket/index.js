@@ -2,7 +2,7 @@ import { setupApuestasSocketHandlers } from './apuestasHandlers.js';
 import { setupBeerpongSocketHandlers } from './beerpongHandlers.js';
 
 import { v4 as uuidv4 } from 'uuid';
-import { createRoom, addPlayerToRoom, removePlayerFromRooms } from './room.js';
+import { createRoom, addPlayerToRoom, removePlayerFromRooms, markPlayerDisconnected, cleanupDisconnectedPlayers, getActiveRooms, generateRoomCode } from './room.js';
 import { assignRandomRole, assignBalancedRole, resolveEncounter } from '../services/gameEngine.js';
 
 import { 
@@ -58,13 +58,19 @@ export function setupSocketHandlers(io) {
     
     // ==================== CREAR SALA ====================
     socket.on('create-room', (data, callback) => {
-      const room = createRoom(socket.id);
+      const room = createRoom(socket.id, rooms);
       
       rooms.set(room.id, room);
       socket.join(room.id);
       
       callback({ success: true, roomId: room.id, room });
       console.log(`Sala ${room.id} creada por ${socket.id}`);
+    });
+    
+    // ==================== OBTENER SALAS ACTIVAS ====================
+    socket.on('get-active-rooms', (data, callback) => {
+      const activeRooms = getActiveRooms(rooms);
+      callback({ success: true, rooms: activeRooms });
     });
     
     // ==================== UNIRSE A SALA ====================
@@ -84,18 +90,28 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      // Verificar si el jugador ya está en la sala
+      // Verificar si el jugador ya está en la sala (conectado o desconectado)
       const existingPlayer = room.players.find(p => p.id === socket.id);
       
       if (existingPlayer) {
+        // Si estaba desconectado, restaurar conexión
+        if (existingPlayer.disconnectedAt) {
+          existingPlayer.disconnectedAt = null;
+          existingPlayer.name = playerName;
+          socket.join(roomId);
+          callback({ success: true, room, player: existingPlayer, reconnected: true });
+          io.emit('room-updated', room);
+          console.log(`[join-room] Jugador ${playerName} reconectado a sala ${roomId}`);
+          return;
+        }
+        
         // Actualizar nombre del jugador existente
         existingPlayer.name = playerName;
         callback({ success: true, room, player: existingPlayer });
-
         return;
       }
       
-      // Agregar jugador
+      // Agregar jugador nuevo
       const player = addPlayerToRoom(room, socket.id, playerName, avatarStyle, avatarSeed);
       
       socket.join(roomId);
@@ -115,38 +131,22 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      // Buscar y eliminar jugador
-      const playerIndex = room.players.findIndex(p => p.id === socket.id);
+      // Buscar jugador
+      const player = room.players.find(p => p.id === socket.id);
       
-      if (playerIndex === -1) {
+      if (!player) {
         callback({ success: false, error: 'No estás en esta sala' });
         return;
       }
       
-      const playerName = room.players[playerIndex].name;
-      room.players.splice(playerIndex, 1);
-      delete room.roles[socket.id];
-      
-      // Limpiar encuentros pendientes del jugador
-      Object.keys(room.pendingEncounters).forEach(key => {
-        const encounter = room.pendingEncounters[key];
-        if (encounter.player1Id === socket.id || encounter.player2Id === socket.id) {
-          delete room.pendingEncounters[key];
-        }
-      });
+      // Marcar como desconectado en lugar de eliminar
+      player.disconnectedAt = Date.now();
       
       socket.leave(roomId);
       
-      // Si la sala queda vacía, eliminarla
-      if (room.players.length === 0) {
-        rooms.delete(roomId);
-        console.log(`Sala ${roomId} eliminada (vacía)`);
-      } else {
-
-      }
-      
-      callback({ success: true });
-      console.log(`${playerName} salió de la sala ${roomId}`);
+      callback({ success: true, disconnected: true });
+      io.emit('room-updated', room);
+      console.log(`${player.name} salió de la sala ${roomId} (marcado como desconectado)`);
     });
     
     // ==================== MARCARSE COMO ESCONDIDO ====================
@@ -425,7 +425,7 @@ export function setupSocketHandlers(io) {
     // ==================== TIME'S UP - CREAR PARTIDA ====================
     socket.on('timesup-create', (data, callback) => {
       const { teamCount, withSounds, playerName } = data;
-      const roomId = uuidv4().slice(0, 8).toUpperCase();
+      const roomId = generateRoomCode(timesupRooms);
       
       console.log('=== timesup-create ===', { roomId, teamCount, withSounds, socketId: socket.id, playerName });
       
@@ -438,10 +438,12 @@ export function setupSocketHandlers(io) {
           id: socket.id,
           name: playerName || 'Host',
           avatarStyle: 'avataaars',
-          avatarSeed: playerName || 'Host'
+          avatarSeed: playerName || 'Host',
+          disconnectedAt: null
         }],
         state: 'lobby',
-        timesup: createTimesUpState(teamCount, withSounds)
+        timesup: createTimesUpState(teamCount, withSounds),
+        createdAt: Date.now()
       };
       
       // Guardar en timesupRooms (no depende del sistema de rooms de socket.io)
@@ -1209,7 +1211,14 @@ export function setupSocketHandlers(io) {
         return;
       }
       
-      console.log('[rejoin-room] Jugador re-conectado:', socket.id, 'Sala:', roomId);
+      // Restaurar conexión si estaba desconectado
+      if (player.disconnectedAt) {
+        player.disconnectedAt = null;
+        socket.join(roomId);
+        io.to(roomId).emit('room-updated', room);
+        io.to(roomId).emit('player-reconnected', { playerId: socket.id, player });
+        console.log('[rejoin-room] Jugador reconectado:', socket.id, 'Sala:', roomId);
+      }
       
       callback({ success: true, room });
     });
@@ -1255,17 +1264,28 @@ export function setupSocketHandlers(io) {
       console.log('socket.id:', socket.id);
       console.log('reason:', reason);
       
-      const affectedRoom = removePlayerFromRooms(rooms, socket.id);
+      // Marcar como desconectado en lugar de eliminar
+      const affectedRoom = markPlayerDisconnected(rooms, socket.id);
       
       if (affectedRoom) {
         console.log('affectedRoom.id:', affectedRoom.id);
-        console.log('Jugadores restantes en sala:', affectedRoom.players.length);
+        const connectedCount = affectedRoom.players.filter(p => !p.disconnectedAt).length;
+        console.log('Jugadores conectados en sala:', connectedCount);
         io.to(affectedRoom.id).emit('room-updated', affectedRoom);
+        io.to(affectedRoom.id).emit('player-disconnected', { playerId: socket.id });
       }
       
       console.log('===========================================');
     });
   });
+  
+  // Cleanup de jugadores desconectados cada 30 segundos
+  setInterval(() => {
+    const removed = cleanupDisconnectedPlayers(rooms, 2 * 60 * 60 * 1000); // 2 horas
+    if (removed > 0) {
+      console.log(`[cleanup] ${removed} jugadores eliminados por timeout`);
+    }
+  }, 30000);
 }
 
 

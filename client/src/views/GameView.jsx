@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   Avatar,
@@ -59,6 +59,7 @@ const getRoleName = (role) => {
  * @param {function} props.setRoomCode - Setter de código de sala
  * @param {Set} props.allies - Set de IDs de aliados
  * @param {object} props.gameFinished - Info de victoria del equipo
+ * @param {function} props.getActiveRooms - Función para obtener salas activas
  */
 export function GameView({
   view,
@@ -88,7 +89,8 @@ export function GameView({
   roomCode,
   setRoomCode,
   allies,
-  gameFinished
+  gameFinished,
+  getActiveRooms
 }) {
   const isGameView = view === VIEWS.GAME || view === VIEWS.GAME_LOBBY || view === VIEWS.HIDDEN;
   
@@ -96,6 +98,21 @@ export function GameView({
   
   const showLobby = !player;
   const isEliminated = currentPlayer?.eliminated;
+  
+  // Estado para salas activas
+  const [activeRooms, setActiveRooms] = useState([]);
+  const [showRoomsList, setShowRoomsList] = useState(false);
+  
+  // Cargar salas activas al mostrar lobby
+  useEffect(() => {
+    if (showLobby && getActiveRooms) {
+      getActiveRooms().then(result => {
+        if (result.success) {
+          setActiveRooms(result.rooms || []);
+        }
+      });
+    }
+  }, [showLobby, getActiveRooms]);
   
   return (
     <div className={`p-4 pb-24 ${isEliminated ? 'bg-red-900/30' : ''}`}>
@@ -131,14 +148,53 @@ export function GameView({
             >
               Crear Sala
             </button>
+            
+            {/* Botón para mostrar salas activas */}
+            <button
+              className="btn-secondary w-full mb-3"
+              onClick={() => setShowRoomsList(!showRoomsList)}
+            >
+              {showRoomsList ? 'Ocultar Salas' : `Ver Salas Activas (${activeRooms.length})`}
+            </button>
+            
+            {/* Lista de salas activas */}
+            {showRoomsList && activeRooms.length > 0 && (
+              <div className="mt-4 mb-4">
+                <h4 className="text-gray-400 text-sm mb-2">Salas disponibles:</h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {activeRooms.map(room => (
+                    <button
+                      key={room.id}
+                      className="w-full p-2 bg-gray-800 hover:bg-gray-700 rounded-lg flex items-center justify-between transition-colors"
+                      onClick={() => {
+                        setRoomCode(room.id);
+                        setShowRoomsList(false);
+                      }}
+                    >
+                      <span className="text-white font-bold">{room.id}</span>
+                      <span className="text-gray-400 text-sm">
+                        {room.playerCount} jugador{room.playerCount !== 1 ? 'es' : ''} • {room.hostName}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {showRoomsList && activeRooms.length === 0 && (
+              <div className="mt-4 mb-4 text-center text-gray-400">
+                <p>No hay salas activas</p>
+              </div>
+            )}
+            
             <div className="mt-4">
               <input
                 type="text"
                 className="input-field text-center"
-                placeholder="Código sala"
+                placeholder="Código sala (2 dígitos)"
                 value={roomCode}
                 onChange={e => setRoomCode(e.target.value.toUpperCase())}
-                maxLength={8}
+                maxLength={2}
               />
             <button
               className="btn-secondary w-full mt-2"
