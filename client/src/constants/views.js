@@ -21,6 +21,13 @@ export const VIEWS = {
   TIMESUP_PLAY: 'timesup-play',
   TIMESUP_ROUND_RESULT: 'timesup-round-result',
   TIMESUP_FINAL_RESULT: 'timesup-final-result',
+  // Time's Up New (Local) views
+  TIMESUP_NEW_LOBBY: 'timesup-new-lobby',
+  TIMESUP_NEW_WORDS: 'timesup-new-words',
+  TIMESUP_NEW_PLAY: 'timesup-new-play',
+  TIMESUP_NEW_PASS: 'timesup-new-pass',
+  TIMESUP_NEW_ROUND_RESULT: 'timesup-new-round-result',
+  TIMESUP_NEW_FINAL: 'timesup-new-final',
   // Apuestas views
   APUESTAS_LOBBY: 'apuestas-lobby',
   APUESTAS_CONFIG: 'apuestas-config',

@@ -25,6 +25,12 @@ import {
   TimesUpPlayView,
   TimesUpRoundResultView,
   TimesUpFinalResultView,
+  TimesupNewLobbyView,
+  TimesupNewWordsView,
+  TimesupNewPlayView,
+  TimesupNewPassView,
+  TimesupNewRoundResultView,
+  TimesupNewFinalView,
   ApuestasLobbyView,
   ApuestasConfigView,
   ApuestasPlayView,
@@ -903,6 +909,96 @@ export default function App() {
       <>
         <ConnectionStatus />
         <TimesUpFinalResultView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Lobby
+  if (view === VIEWS.TIMESUP_NEW_LOBBY) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewLobbyView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Words
+  if (view === VIEWS.TIMESUP_NEW_WORDS) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewWordsView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Play
+  if (view === VIEWS.TIMESUP_NEW_PLAY) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewPlayView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Pass (Pass the phone)
+  if (view === VIEWS.TIMESUP_NEW_PASS) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewPassView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Round Result
+  if (view === VIEWS.TIMESUP_NEW_ROUND_RESULT) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewRoundResultView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Final
+  if (view === VIEWS.TIMESUP_NEW_FINAL) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewFinalView
           onNavigate={handleTabNavigate}
         />
         <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">

@@ -16,8 +16,15 @@ const GAMES = [
     id: 'timesup',
     name: "Time's Up",
     icon: '⏱️',
-    description: 'Adivina palabras en equipo',
+    description: 'Adivina palabras en equipo (multijugador)',
     view: VIEWS.TIMESUP_LOBBY
+  },
+  {
+    id: 'timesupnew',
+    name: 'TimeUp New',
+    icon: '🎯',
+    description: 'Adivina palabras en un solo móvil',
+    view: VIEWS.TIMESUP_NEW_LOBBY
   },
   {
     id: 'apuestas',

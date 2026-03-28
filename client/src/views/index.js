@@ -17,6 +17,13 @@ export { TimesUpWordInputView } from './TimesUpWordInputView.jsx';
 export { TimesUpPlayView } from './TimesUpPlayView.jsx';
 export { TimesUpRoundResultView } from './TimesUpRoundResultView.jsx';
 export { TimesUpFinalResultView } from './TimesUpFinalResultView.jsx';
+// Time's Up New (Local) views
+export { TimesupNewLobbyView } from './TimesupNewLobbyView.jsx';
+export { TimesupNewWordsView } from './TimesupNewWordsView.jsx';
+export { TimesupNewPlayView } from './TimesupNewPlayView.jsx';
+export { TimesupNewPassView } from './TimesupNewPassView.jsx';
+export { TimesupNewRoundResultView } from './TimesupNewRoundResultView.jsx';
+export { TimesupNewFinalView } from './TimesupNewFinalView.jsx';
 // Apuestas views
 export { default as ApuestasLobbyView } from './ApuestasLobbyView.jsx';
 export { default as ApuestasConfigView } from './ApuestasConfigView.jsx';
