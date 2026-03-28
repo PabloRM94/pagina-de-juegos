@@ -4,6 +4,22 @@ import { generateRoomCode } from './room.js';
 // ==================== UTILIDADES ====================
 
 /**
+ * Obtiene el timer sin el intervalId (para enviar por socket.io)
+ * @param {object} timer - Objeto timer de la room
+ * @returns {object} - Timer limpio serializable
+ */
+function getCleanTimer(timer) {
+  return {
+    matchId: timer.matchId,
+    matchLabel: timer.matchLabel,
+    duration: timer.duration,
+    remaining: timer.remaining,
+    isRunning: timer.isRunning,
+    startedAt: timer.startedAt
+  };
+}
+
+/**
  * Genera calendario de round-robin para un grupo de equipos
  * Asegura que todos jueguen la misma cantidad de partidos
  * @param {Array} teamIds - IDs de equipos
@@ -844,11 +860,11 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       room.matchTimer.remaining = seconds;
     }
     
-    callback({ success: true, timer: room.matchTimer });
+    callback({ success: true, timer: getCleanTimer(room.matchTimer) });
     
     io.emit('beerpong-timer-sync', {
       roomId: room.id,
-      timer: room.matchTimer
+      timer: getCleanTimer(room.matchTimer)
     });
   });
 
@@ -898,15 +914,15 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       // Broadcast sync cada segundo
       io.emit('beerpong-timer-sync', {
         roomId: room.id,
-        timer: room.matchTimer
+        timer: getCleanTimer(room.matchTimer)
       });
     }, 1000);
     
-    callback({ success: true, timer: room.matchTimer });
+    callback({ success: true, timer: getCleanTimer(room.matchTimer) });
     
     io.emit('beerpong-timer-sync', {
       roomId: room.id,
-      timer: room.matchTimer
+      timer: getCleanTimer(room.matchTimer)
     });
   });
 
@@ -931,11 +947,11 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       room.matchTimer.intervalId = null;
     }
     
-    callback({ success: true, timer: room.matchTimer });
+    callback({ success: true, timer: getCleanTimer(room.matchTimer) });
     
     io.emit('beerpong-timer-sync', {
       roomId: room.id,
-      timer: room.matchTimer
+      timer: getCleanTimer(room.matchTimer)
     });
   });
 
@@ -978,15 +994,15 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       
       io.emit('beerpong-timer-sync', {
         roomId: room.id,
-        timer: room.matchTimer
+        timer: getCleanTimer(room.matchTimer)
       });
     }, 1000);
     
-    callback({ success: true, timer: room.matchTimer });
+    callback({ success: true, timer: getCleanTimer(room.matchTimer) });
     
     io.emit('beerpong-timer-sync', {
       roomId: room.id,
-      timer: room.matchTimer
+      timer: getCleanTimer(room.matchTimer)
     });
   });
 
@@ -1000,7 +1016,7 @@ export function setupBeerpongSocketHandlers(io, socket, bepongRooms) {
       return;
     }
     
-    callback({ success: true, timer: room.matchTimer });
+    callback({ success: true, timer: getCleanTimer(room.matchTimer) });
   });
 }
 
