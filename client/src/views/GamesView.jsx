@@ -22,7 +22,7 @@ const GAMES = [
   {
     id: 'timesupnew',
     name: 'TimeUp New',
-    icon: '🎯',
+    icon: '🆕',
     description: 'Adivina palabras en un solo móvil',
     view: VIEWS.TIMESUP_NEW_LOBBY
   },

@@ -78,8 +78,19 @@ export function TimesupNewWordsView({ onNavigate }) {
       // Guardar estado inicial
       sessionStorage.setItem('timesupnew_state', JSON.stringify(gameState));
 
+      // Guardar datos para pantalla de pasar móvil (PRIMERO)
+      const firstTeam = gameState.teams[0];
+      sessionStorage.setItem('timesupnew_passData', JSON.stringify({
+        teamId: 0,
+        teamName: firstTeam?.name || 'Equipo A',
+        playerName: firstTeam?.players?.[0] || 'Primer jugador',
+        isEndOfRound: false
+      }));
+
       // Navegar a pasar móvil
       onNavigate(VIEWS.TIMESUP_NEW_PASS);
+    }).catch(err => {
+      console.error('Error al iniciar juego:', err);
     });
   };
 
