@@ -19,7 +19,10 @@ export { TimesUpRoundResultView } from './TimesUpRoundResultView.jsx';
 export { TimesUpFinalResultView } from './TimesUpFinalResultView.jsx';
 // Time's Up New (Local) views
 export { TimesupNewLobbyView } from './TimesupNewLobbyView.jsx';
+export { TimesupNewTeamsView } from './TimesupNewTeamsView.jsx';
+export { TimesupNewTeamNameView } from './TimesupNewTeamNameView.jsx';
 export { TimesupNewWordsView } from './TimesupNewWordsView.jsx';
+export { TimesupNewWaitingView } from './TimesupNewWaitingView.jsx';
 export { TimesupNewPlayView } from './TimesupNewPlayView.jsx';
 export { TimesupNewPassView } from './TimesupNewPassView.jsx';
 export { TimesupNewRoundResultView } from './TimesupNewRoundResultView.jsx';

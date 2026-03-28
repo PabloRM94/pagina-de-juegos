@@ -23,7 +23,10 @@ export const VIEWS = {
   TIMESUP_FINAL_RESULT: 'timesup-final-result',
   // Time's Up New (Local) views
   TIMESUP_NEW_LOBBY: 'timesup-new-lobby',
+  TIMESUP_NEW_TEAMS: 'timesup-new-teams',
+  TIMESUP_NEW_TEAM_NAME: 'timesup-new-team-name',
   TIMESUP_NEW_WORDS: 'timesup-new-words',
+  TIMESUP_NEW_WAITING: 'timesup-new-waiting',
   TIMESUP_NEW_PLAY: 'timesup-new-play',
   TIMESUP_NEW_PASS: 'timesup-new-pass',
   TIMESUP_NEW_ROUND_RESULT: 'timesup-new-round-result',

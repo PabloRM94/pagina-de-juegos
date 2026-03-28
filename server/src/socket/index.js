@@ -1,5 +1,6 @@
 import { setupApuestasSocketHandlers } from './apuestasHandlers.js';
 import { setupBeerpongSocketHandlers } from './beerpongHandlers.js';
+import { registerTimesupNewHandlers } from './timesupNewHandlers.js';
 
 import { v4 as uuidv4 } from 'uuid';
 import { createRoom, addPlayerToRoom, removePlayerFromRooms, markPlayerDisconnected, cleanupDisconnectedPlayers, getActiveRooms, getTimesupActiveRooms, getApuestasActiveRooms, generateRoomCode, transferHostIfNeeded } from './room.js';
@@ -46,6 +47,9 @@ export function setupSocketHandlers(io) {
   
   // Salas de BeerPong Tournament - gestión de bracket
   const bepongRooms = new Map();
+  
+  // Salas de TimeUp New - versión multiplayer local
+  const timesupNewRooms = new Map();
   
   // Función helper para buscar sala de Time's Up
   const getTimesupRoom = (roomId) => {
@@ -1405,6 +1409,9 @@ export function setupSocketHandlers(io) {
 
     // ==================== BEERPONG - REGISTRAR HANDLERS ====================
     setupBeerpongSocketHandlers(io, socket, bepongRooms);
+
+    // ==================== TIMEUP NEW - REGISTRAR HANDLERS ====================
+    registerTimesupNewHandlers(io, timesupNewRooms);
 
     // ==================== DESCONEXIÓN ====================
     socket.on('disconnect', (reason) => {

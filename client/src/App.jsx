@@ -26,7 +26,10 @@ import {
   TimesUpRoundResultView,
   TimesUpFinalResultView,
   TimesupNewLobbyView,
+  TimesupNewTeamsView,
+  TimesupNewTeamNameView,
   TimesupNewWordsView,
+  TimesupNewWaitingView,
   TimesupNewPlayView,
   TimesupNewPassView,
   TimesupNewRoundResultView,
@@ -933,12 +936,57 @@ export default function App() {
     );
   }
 
+  // Time's Up New - Teams
+  if (view === VIEWS.TIMESUP_NEW_TEAMS) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewTeamsView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Team Name
+  if (view === VIEWS.TIMESUP_NEW_TEAM_NAME) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewTeamNameView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
   // Time's Up New - Words
   if (view === VIEWS.TIMESUP_NEW_WORDS) {
     return (
       <>
         <ConnectionStatus />
         <TimesupNewWordsView
+          onNavigate={handleTabNavigate}
+        />
+        <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">
+          © Hecho por Pabels con amor ❤️
+        </footer>
+      </>
+    );
+  }
+
+  // Time's Up New - Waiting
+  if (view === VIEWS.TIMESUP_NEW_WAITING) {
+    return (
+      <>
+        <ConnectionStatus />
+        <TimesupNewWaitingView
           onNavigate={handleTabNavigate}
         />
         <footer className="fixed bottom-0 left-0 right-0 py-2 text-center text-gray-400 text-xs bg-gray-900 border-t border-gray-800">

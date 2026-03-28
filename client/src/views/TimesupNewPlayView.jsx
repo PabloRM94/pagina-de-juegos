@@ -1,18 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSocket } from '../hooks/index.js';
 import { VIEWS } from '../constants/index.js';
-import { 
-  ROUND_NAMES, 
-  ROUND_TIMES,
-  startTurn,
-  markCorrect,
-  markWrong,
-  skipWord,
-  endTurn,
-  endRound,
-  updateRoundConfig,
-  getCurrentPlayer,
-  getRemainingWordsCount
-} from '../utils/timesupLocalEngine.js';
+
+const ROUND_NAMES = {
+  1: 'Descripción Libre',
+  2: 'Una Palabra',
+  3: 'Mímica',
+  4: 'Sonidos'
+};
 
 const ROUND_TIME_OPTIONS = [
   { value: 30000, label: '30 segundos' },
@@ -23,383 +18,309 @@ const ROUND_TIME_OPTIONS = [
 ];
 
 /**
- * Vista principal de juego TimeUp New
+ * Vista principal de juego TimeUp New (Multiplayer)
  */
 export function TimesupNewPlayView({ onNavigate }) {
-  const [gameState, setGameState] = useState(null);
+  const { socket } = useSocket();
+  
+  const [roomId, setRoomId] = useState('');
+  const [teams, setTeams] = useState([]);
+  const [currentRound, setCurrentRound] = useState(1);
+  const [currentTeamTurn, setCurrentTeamTurn] = useState(0);
+  const [currentWord, setCurrentWord] = useState('');
   const [timeLeft, setTimeLeft] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [turnActive, setTurnActive] = useState(false);
+  const [roundConfig, setRoundConfig] = useState({});
   const [showConfig, setShowConfig] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  
   const timerRef = useRef(null);
-
-  // Cargar estado del juego
+  
+  // Cargar datos iniciales
   useEffect(() => {
-    const saved = sessionStorage.getItem('timesupnew_state');
-    if (saved) {
-      setGameState(JSON.parse(saved));
-    } else {
+    const storedRoomId = sessionStorage.getItem('timesupnew_roomId');
+    const storedHost = sessionStorage.getItem('timesupnew_host');
+    
+    if (!storedRoomId) {
       onNavigate(VIEWS.TIMESUP_NEW_LOBBY);
+      return;
     }
-  }, [onNavigate]);
-
-  // Timer
-  useEffect(() => {
-    if (gameState?.turnActive && timeLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            // Time's up - terminar turno
-            clearInterval(timerRef.current);
-            handleTurnTimeout();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
+    
+    setRoomId(storedRoomId);
+    setIsHost(storedHost === socket.id);
+    
+    // Escuchar eventos
+    const handleTurnStarted = (data) => {
+      if (data.roomId !== roomId) return;
+      setCurrentWord(data.word || '');
+      setTimeLeft(Math.floor(data.timeLimit / 1000));
+      setTurnActive(true);
+      setCurrentTeamTurn(data.teamId);
+      startLocalTimer(data.timeLimit);
+    };
+    
+    const handleWordCorrect = (data) => {
+      if (data.roomId !== roomId) return;
+      setIsProcessing(false);
+      setCurrentWord(data.nextWord || '');
+      // Actualizar scores
+      setTeams(prev => prev.map((t, i) => 
+        i === data.teamId ? { ...t, score: data.teamScore } : t
+      ));
+    };
+    
+    const handleWordWrong = (data) => {
+      if (data.roomId !== roomId) return;
+      setIsProcessing(false);
+      if (data.nextWord) {
+        setCurrentWord(data.nextWord);
       }
     };
-  }, [gameState?.turnActive]);
-
-  // Manejar timeout del turno
-  const handleTurnTimeout = useCallback(() => {
-    if (!gameState) return;
     
-    // Terminar turno por tiempo
-    const newState = endTurn(gameState);
-    newState.turnActive = false;
-    newState.currentWord = null;
+    const handleWordSkipped = (data) => {
+      if (data.roomId !== roomId) return;
+      setIsProcessing(false);
+      setCurrentWord(data.nextWord || '');
+    };
     
-    setGameState(newState);
-    sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
+    const handleWrongAnswer = (data) => {
+      if (data.roomId !== roomId) return;
+      setTurnActive(false);
+      setCurrentTeamTurn(data.nextTeamId);
+      setCurrentWord('');
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
     
-    // Guardar datos para pantalla de pasar móvil
-    sessionStorage.setItem('timesupnew_passData', JSON.stringify({
-      teamId: newState.currentTeamTurn,
-      teamName: newState.teams[newState.currentTeamTurn]?.name || 'Equipo',
-      playerName: getCurrentPlayer(newState) || 'Jugador',
-      isEndOfRound: false
-    }));
+    const handleTeamTurnChanged = (data) => {
+      if (data.roomId !== roomId) return;
+      setCurrentTeamTurn(data.nextTeamId);
+      setTurnActive(false);
+      setCurrentWord('');
+      setCurrentRound(data.round);
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
     
-    onNavigate(VIEWS.TIMESUP_NEW_PASS);
-  }, [gameState, onNavigate]);
-
-  // Iniciar turno
-  const handleStartTurn = () => {
-    if (!gameState) return;
-    
-    const newState = startTurn(gameState);
-    const roundConfig = newState.roundConfig[newState.currentRound];
-    setTimeLeft(Math.floor(roundConfig.timePerTurn / 1000));
-    
-    setGameState(newState);
-    sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
-  };
-
-  // Botón correcto
-  const handleCorrect = () => {
-    if (!gameState || isProcessing) return;
-    setIsProcessing(true);
-    
-    const newState = markCorrect(gameState);
-    setGameState(newState);
-    sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
-    setIsProcessing(false);
-  };
-
-  // Botón wrong
-  const handleWrong = () => {
-    if (!gameState || isProcessing) return;
-    setIsProcessing(true);
-    
-    const newState = markWrong(gameState);
-    
-    // Si failPassesTurn es true, termina el turno
-    const roundConfig = newState.roundConfig[newState.currentRound];
-    if (roundConfig.failPassesTurn || !newState.currentWord) {
-      // Terminar turno
-      const endedState = endTurn(newState);
-      endedState.turnActive = false;
-      endedState.currentWord = null;
+    const handleRoundEnded = (data) => {
+      if (data.roomId !== roomId) return;
+      if (timerRef.current) clearInterval(timerRef.current);
+      setTurnActive(false);
+      setCurrentRound(data.round);
       
-      setGameState(endedState);
-      sessionStorage.setItem('timesupnew_state', JSON.stringify(endedState));
-      
-      // Guardar datos para pantalla de pasar móvil
-      sessionStorage.setItem('timesupnew_passData', JSON.stringify({
-        teamId: endedState.currentTeamTurn,
-        teamName: endedState.teams[endedState.currentTeamTurn]?.name || 'Equipo',
-        playerName: getCurrentPlayer(endedState) || 'Jugador',
-        isEndOfRound: false
-      }));
-      
-      onNavigate(VIEWS.TIMESUP_NEW_PASS);
-    } else {
-      setGameState(newState);
-      sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
-    }
-    
-    setIsProcessing(false);
-  };
-
-  // Botón skip
-  const handleSkip = () => {
-    if (!gameState || isProcessing) return;
-    setIsProcessing(true);
-    
-    const newState = skipWord(gameState);
-    
-    if (!newState.currentWord) {
-      // No hay más palabras - terminar turno
-      const endedState = endTurn(newState);
-      endedState.turnActive = false;
-      endedState.currentWord = null;
-      
-      setGameState(endedState);
-      sessionStorage.setItem('timesupnew_state', JSON.stringify(endedState));
-      
-      // Guardar datos para pantalla de pasar móvil
-      sessionStorage.setItem('timesupnew_passData', JSON.stringify({
-        teamId: endedState.currentTeamTurn,
-        teamName: endedState.teams[endedState.currentTeamTurn]?.name || 'Equipo',
-        playerName: getCurrentPlayer(endedState) || 'Jugador',
-        isEndOfRound: false
-      }));
-      
-      onNavigate(VIEWS.TIMESUP_NEW_PASS);
-    } else {
-      setGameState(newState);
-      sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
-    }
-    
-    setIsProcessing(false);
-  };
-
-  // Cambiar al siguiente equipo (botón manual)
-  const handleNextTeam = () => {
-    if (!gameState) return;
-    
-    const newState = endTurn(gameState);
-    newState.turnActive = false;
-    newState.currentWord = null;
-    
-    setGameState(newState);
-    sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
-    
-    // Guardar datos para pantalla de pasar móvil
-    sessionStorage.setItem('timesupnew_passData', JSON.stringify({
-      teamId: newState.currentTeamTurn,
-      teamName: newState.teams[newState.currentTeamTurn]?.name || 'Equipo',
-      playerName: getCurrentPlayer(newState) || 'Jugador',
-      isEndOfRound: false
-    }));
-    
-    onNavigate(VIEWS.TIMESUP_NEW_PASS);
-  };
-
-  // Terminar ronda
-  const handleEndRound = () => {
-    if (!gameState) return;
-    
-    const newState = endRound(gameState);
-    setGameState(newState);
-    sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
-    
-    if (newState.state === 'finished') {
-      onNavigate(VIEWS.TIMESUP_NEW_FINAL);
-    } else {
-      // Guardar datos para resultado de ronda
+      // Guardar datos para resultado
       sessionStorage.setItem('timesupnew_roundData', JSON.stringify({
-        round: gameState.currentRound,
-        roundName: ROUND_NAMES[gameState.currentRound],
-        teams: gameState.teams,
-        roundScores: gameState.roundScores,
-        isLastRound: gameState.currentRound >= gameState.config.totalRounds
+        round: data.round,
+        roundName: data.roundName,
+        teams: data.leaderboard,
+        roundScores: data.scores,
+        isLastRound: data.isLastRound
       }));
       
-      onNavigate(VIEWS.TIMESUP_NEW_ROUND_RESULT);
+      if (data.isLastRound) {
+        onNavigate(VIEWS.TIMESUP_NEW_FINAL);
+      } else {
+        onNavigate(VIEWS.TIMESUP_NEW_ROUND_RESULT);
+      }
+    };
+    
+    const handleRoundConfigUpdated = (data) => {
+      if (data.roomId !== roomId) return;
+      setRoundConfig(prev => ({
+        ...prev,
+        [data.roundNumber]: data.config
+      }));
+    };
+    
+    socket.on('timesupnew-turn-started', handleTurnStarted);
+    socket.on('timesupnew-word-correct', handleWordCorrect);
+    socket.on('timesupnew-word-wrong', handleWordWrong);
+    socket.on('timesupnew-word-skipped', handleWordSkipped);
+    socket.on('timesupnew-wrong-answer', handleWrongAnswer);
+    socket.on('timesupnew-team-turn-changed', handleTeamTurnChanged);
+    socket.on('timesupnew-round-ended', handleRoundEnded);
+    socket.on('timesupnew-round-config-updated', handleRoundConfigUpdated);
+    
+    // Obtener estado inicial
+    socket.emit('timesupnew-get-state', { roomId }, (response) => {
+      if (response.success) {
+        setTeams(response.teams || []);
+        setCurrentRound(response.currentRound || 1);
+        setCurrentTeamTurn(response.currentTeamTurn || 0);
+        setRoundConfig(response.roundConfig || {});
+      }
+    });
+    
+    return () => {
+      socket.off('timesupnew-turn-started', handleTurnStarted);
+      socket.off('timesupnew-word-correct', handleWordCorrect);
+      socket.off('timesupnew-word-wrong', handleWordWrong);
+      socket.off('timesupnew-word-skipped', handleWordSkipped);
+      socket.off('timesupnew-wrong-answer', handleWrongAnswer);
+      socket.off('timesupnew-team-turn-changed', handleTeamTurnChanged);
+      socket.off('timesupnew-round-ended', handleRoundEnded);
+      socket.off('timesupnew-round-config-updated', handleRoundConfigUpdated);
+    };
+  }, [socket, roomId, onNavigate]);
+  
+  const startLocalTimer = (duration) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    let remaining = Math.floor(duration / 1000);
+    setTimeLeft(remaining);
+    
+    timerRef.current = setInterval(() => {
+      remaining -= 1;
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+      }
+    }, 1000);
+  };
+  
+  // Iniciar turno
+  const handleStartTurn = async () => {
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-start-turn', { roomId }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      console.error('Error:', err);
     }
   };
-
-  // Actualizar config de ronda
-  const handleUpdateConfig = (key, value) => {
-    if (!gameState) return;
-    
-    const newState = updateRoundConfig(
-      gameState, 
-      gameState.currentRound, 
-      { [key]: value }
-    );
-    
-    setGameState(newState);
-    sessionStorage.setItem('timesupnew_state', JSON.stringify(newState));
+  
+  // Botones
+  const handleCorrect = async () => {
+    if (!turnActive || !currentWord || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-correct', { roomId, word: currentWord }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      setIsProcessing(false);
+    }
   };
-
-  // Helper para obtener round config
-  const getRoundConfig = () => {
-    if (!gameState) return { timePerTurn: 60000, failPassesTurn: false, allowSkip: true };
-    return gameState.roundConfig[gameState.currentRound] || { timePerTurn: 60000, failPassesTurn: false, allowSkip: true };
+  
+  const handleWrong = async () => {
+    if (!turnActive || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-wrong', { roomId }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      setIsProcessing(false);
+    }
   };
-
-  if (!gameState) {
-    return (
-      <div className="min-h-screen p-4 flex items-center justify-center">
-        <div className="text-white">Cargando...</div>
-      </div>
-    );
-  }
-
-  const currentTeam = gameState.teams[gameState.currentTeamTurn];
-  const currentPlayer = getCurrentPlayer(gameState);
-  const roundConfig = getRoundConfig();
-  const remainingWords = getRemainingWordsCount(gameState);
-
+  
+  const handleSkip = async () => {
+    if (!turnActive || !currentWord || isProcessing) return;
+    setIsProcessing(true);
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-skip', { roomId, word: currentWord }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleChangeTeam = async () => {
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-change-team', { roomId }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
+  
+  const handleEndRound = async () => {
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-end-round', { roomId }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
+  
+  const handleUpdateConfig = async (key, value) => {
+    if (!isHost || turnActive) return;
+    const newConfig = { ...(roundConfig[currentRound] || {}), [key]: value };
+    try {
+      await new Promise((resolve, reject) => {
+        socket.emit('timesupnew-update-round-config', {
+          roomId,
+          roundNumber: currentRound,
+          config: newConfig
+        }, (response) => {
+          if (response.success) resolve(response);
+          else reject(new Error(response.error));
+        });
+      });
+    } catch (err) {
+      console.error('Error:', err);
+    }
+  };
+  
+  const currentTeam = teams[currentTeamTurn];
+  const config = roundConfig[currentRound] || { timePerTurn: 60000, failPassesTurn: false, allowSkip: true };
+  
   return (
     <div className="min-h-screen p-4">
       <div className="max-w-md mx-auto space-y-4">
         {/* Header */}
         <div className="text-center pt-2">
-          <p className="text-gray-400 text-sm">
-            Ronda {gameState.currentRound}: {ROUND_NAMES[gameState.currentRound]}
-          </p>
+          <p className="text-gray-400 text-sm">Ronda {currentRound}: {ROUND_NAMES[currentRound]}</p>
           <h2 className="text-xl font-bold text-white">
             Turno: {currentTeam?.name || 'Equipo'}
           </h2>
         </div>
-
-        {/* Panel de configuración de ronda */}
-        <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-indigo-500/30 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-indigo-400 font-bold text-sm flex items-center gap-2">
-              <span className="text-lg">📜</span> 
-              {ROUND_NAMES[gameState.currentRound]}
-            </h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowConfig(!showConfig)}
-                className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded"
-              >
-                {showConfig ? 'Ocultar' : '⚙️'}
-              </button>
-              <span className="bg-indigo-600/30 text-indigo-300 text-xs px-2 py-1 rounded-full">
-                Ronda {gameState.currentRound}
-              </span>
-            </div>
-          </div>
-          
-          {/* Config expandible */}
-          {showConfig && (
-            <div className="space-y-2 mt-3 pt-3 border-t border-gray-700">
-              {/* Tiempo */}
-              <div className="flex items-center justify-between bg-gray-700/30 rounded-lg px-3 py-2">
-                <span className="text-gray-400 text-xs">Tiempo</span>
-                <select
-                  value={roundConfig.timePerTurn}
-                  onChange={(e) => handleUpdateConfig('timePerTurn', parseInt(e.target.value))}
-                  className="bg-gray-600 text-white text-xs px-2 py-1 rounded cursor-pointer hover:bg-gray-500"
-                  disabled={gameState.turnActive}
-                >
-                  {ROUND_TIME_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Fail passes turn */}
-              <div className="flex items-center justify-between bg-gray-700/30 rounded-lg px-3 py-2">
-                <span className="text-gray-400 text-xs">Al fallar</span>
-                <button
-                  onClick={() => handleUpdateConfig('failPassesTurn', !roundConfig.failPassesTurn)}
-                  disabled={gameState.turnActive}
-                  className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                    roundConfig.failPassesTurn 
-                      ? 'bg-red-600 hover:bg-red-500 text-white' 
-                      : 'bg-green-600 hover:bg-green-500 text-white'
-                  } ${gameState.turnActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {roundConfig.failPassesTurn ? 'Pierde turno' : 'Siguiente palabra'}
-                </button>
-              </div>
-              
-              {/* Allow skip */}
-              <div className="flex items-center justify-between bg-gray-700/30 rounded-lg px-3 py-2">
-                <span className="text-gray-400 text-xs">Skip</span>
-                <button
-                  onClick={() => handleUpdateConfig('allowSkip', !roundConfig.allowSkip)}
-                  disabled={gameState.turnActive}
-                  className={`px-3 py-1 text-xs rounded font-medium transition-colors ${
-                    roundConfig.allowSkip 
-                      ? 'bg-green-600 hover:bg-green-500 text-white' 
-                      : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
-                  } ${gameState.turnActive ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  {roundConfig.allowSkip ? 'Permitido' : 'No permitido'}
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {/* Info básica */}
-          <div className="grid grid-cols-3 gap-2 text-center mt-3">
-            <div className="bg-gray-700/40 rounded-lg p-2">
-              <p className="text-gray-500 text-xs mb-1">⏱️ Tiempo</p>
-              <p className="text-white font-bold">{Math.floor(roundConfig.timePerTurn / 1000)}s</p>
-            </div>
-            <div className="bg-gray-700/40 rounded-lg p-2">
-              <p className="text-gray-500 text-xs mb-1">❌ Fallar</p>
-              <p className={`font-bold ${roundConfig.failPassesTurn ? 'text-red-400' : 'text-green-400'}`}>
-                {roundConfig.failPassesTurn ? 'Pierde' : 'Continúa'}
-              </p>
-            </div>
-            <div className="bg-gray-700/40 rounded-lg p-2">
-              <p className="text-gray-500 text-xs mb-1">⏭️ Skip</p>
-              <p className={`font-bold ${roundConfig.allowSkip ? 'text-green-400' : 'text-gray-500'}`}>
-                {roundConfig.allowSkip ? '✓' : '✗'}
-              </p>
-            </div>
-          </div>
-        </div>
-
+        
         {/* Timer */}
         <div className="text-center">
           <div className={`inline-block px-6 py-2 rounded-full ${
-            timeLeft <= 10 && timeLeft > 0 
-              ? 'bg-red-500/30 text-red-400 animate-pulse' 
-              : 'bg-gray-700 text-white'
+            timeLeft <= 10 && timeLeft > 0 ? 'bg-red-500/30 text-red-400 animate-pulse' : 'bg-gray-700 text-white'
           }`}>
             <span className="text-2xl font-bold">
               {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
             </span>
-            <span className="text-gray-400 text-sm ml-2">
-              / {Math.floor(roundConfig.timePerTurn / 1000)}s
-            </span>
           </div>
         </div>
-
+        
         {/* Palabra actual */}
-        {gameState.turnActive && gameState.currentWord && (
+        {turnActive && currentWord && (
           <div className="bg-indigo-500/30 border-2 border-indigo-500 rounded-2xl p-6 text-center">
-            <p className="text-gray-300 text-sm mb-2">Palabra actual:</p>
-            <p className="text-4xl font-bold text-indigo-400 uppercase">
-              {gameState.currentWord}
-            </p>
-            <p className="text-gray-500 text-sm mt-2">
-              {remainingWords} palabras restantes
-            </p>
+            <p className="text-gray-300 text-sm mb-2">Palabra:</p>
+            <p className="text-4xl font-bold text-indigo-400 uppercase">{currentWord}</p>
           </div>
         )}
-
-        {/* Estado: Turno no activo - esperar o iniciar */}
-        {!gameState.turnActive && (
+        
+        {/* Estado: Turno no activo */}
+        {!turnActive && (
           <div className="bg-gray-800/50 border border-gray-700 rounded-2xl p-6 text-center">
-            <p className="text-gray-400 mb-4">Turno de: <span className="text-white font-bold">{currentTeam?.name}</span></p>
-            {currentPlayer && (
-              <p className="text-indigo-400 mb-4">🎤 {currentPlayer}</p>
-            )}
+            <p className="text-gray-400 mb-4">
+              Turno de: <span className="text-white font-bold">{currentTeam?.name}</span>
+            </p>
             <button
               onClick={handleStartTurn}
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
@@ -408,9 +329,9 @@ export function TimesupNewPlayView({ onNavigate }) {
             </button>
           </div>
         )}
-
-        {/* Botones de acción (cuando turno activo) */}
-        {gameState.turnActive && gameState.currentWord && !isProcessing && (
+        
+        {/* Botones de acción */}
+        {turnActive && currentWord && !isProcessing && (
           <div className="space-y-3">
             <button
               onClick={handleCorrect}
@@ -422,59 +343,52 @@ export function TimesupNewPlayView({ onNavigate }) {
             <div className="flex gap-2">
               <button
                 onClick={handleWrong}
-                disabled={!roundConfig.failPassesTurn}
+                disabled={!config.failPassesTurn}
                 className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 ✗ Wrong
               </button>
               <button
                 onClick={handleSkip}
-                disabled={!roundConfig.allowSkip}
+                disabled={!config.allowSkip}
                 className="flex-1 bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
                 ⏭ Skip
               </button>
             </div>
-
+            
             <button
-              onClick={handleNextTeam}
+              onClick={handleChangeTeam}
               className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
               Cambiar de Equipo →
             </button>
           </div>
         )}
-
-        {/* Procesando */}
-        {isProcessing && (
-          <div className="text-center text-gray-400 py-4">
-            Procesando...
-          </div>
-        )}
-
+        
         {/* Scores */}
         <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
           <p className="text-gray-400 text-sm mb-3">Puntuación</p>
           <div className="space-y-2">
-            {gameState.teams.map((team) => (
+            {teams.map((team) => (
               <div 
                 key={team.id}
                 className={`flex justify-between items-center p-2 rounded-lg ${
-                  team.id === gameState.currentTeamTurn ? 'bg-indigo-500/20' : 'bg-gray-700/30'
+                  team.id === currentTeamTurn ? 'bg-indigo-500/20' : 'bg-gray-700/30'
                 }`}
               >
                 <span className="text-white font-medium">
                   {team.name}
-                  {team.id === gameState.currentTeamTurn && ' ←'}
+                  {team.id === currentTeamTurn && ' ←'}
                 </span>
                 <span className="text-indigo-400 font-bold text-lg">{team.score}</span>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Botón terminar ronda */}
-        {!gameState.turnActive && (
+        
+        {/* Terminar ronda (host) */}
+        {!turnActive && isHost && (
           <button
             onClick={handleEndRound}
             className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
