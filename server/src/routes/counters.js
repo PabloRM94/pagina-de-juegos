@@ -200,7 +200,7 @@ router.get('/counters/:userId', authenticateToken, async (req, res) => {
     
     // Obtener custom counters de todos los registros y combinarlos
     const customCountersRows = await db.prepare(
-      'SELECT custom_counters FROM counters WHERE user_id = ? AND custom_counters IS NOT NULL AND custom_counters != "{}"'
+      'SELECT custom_counters FROM counters WHERE user_id = ? AND custom_counters IS NOT NULL AND custom_counters != '{}''
     ).all(userId);
     
     // Combinar todos los contadores personalizados
@@ -255,7 +255,7 @@ router.get('/counters', authenticateToken, async (req, res) => {
     const customCounters = await db.prepare(`
       SELECT user_id, custom_counters 
       FROM counters 
-      WHERE custom_counters IS NOT NULL AND custom_counters != "{}"
+      WHERE custom_counters IS NOT NULL AND custom_counters != '{}'
     `).all();
     
     // Combinar custom counters por usuario
