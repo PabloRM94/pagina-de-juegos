@@ -29,6 +29,15 @@ export function TimesUpLobbyView({ onNavigate }) {
   const [inRoom, setInRoom] = useState(false);
   const [activeRooms, setActiveRooms] = useState([]);
   const [showRooms, setShowRooms] = useState(false);
+  const [hostMessage, setHostMessage] = useState(null);
+  
+  // Limpiar mensaje de host después de 5 segundos
+  useEffect(() => {
+    if (hostMessage) {
+      const timer = setTimeout(() => setHostMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [hostMessage]);
   
   // Obtener salas activas al montar el componente
   useEffect(() => {
@@ -245,9 +254,40 @@ export function TimesUpLobbyView({ onNavigate }) {
       console.log('[SERVER LOG]:', data.message);
     };
 
+    // Host events
+    const handleYouAreHost = (data) => {
+      console.log('[TimesUpLobby] ¡Ahora eres el host!', data);
+      setIsHost(true);
+      setHostMessage({ type: 'new-host', message: `¡Ahora eres el host! Has reemplazado a ${data.oldHostName}` });
+    };
+    
+    const handleHostRestored = (data) => {
+      console.log('[TimesUpLobby] Has recuperado el host:', data);
+      setIsHost(true);
+      setHostMessage({ type: 'host-restored', message: '¡Has recuperado el rol de host!' });
+    };
+    
+    const handleHostRemoved = (data) => {
+      console.log('[TimesUpLobby] Ya no eres host:', data);
+      setIsHost(false);
+      setHostMessage({ type: 'host-removed', message: data.message || 'El host original se ha reconectado' });
+    };
+    
+    const handleHostChanged = (data) => {
+      console.log('[TimesUpLobby] El host cambió:', data);
+      if (data.newHostId === socket.id && !data.restored) {
+        setIsHost(true);
+        setHostMessage({ type: 'new-host', message: `¡Ahora eres el host! Has reemplazado a ${data.oldHostName}` });
+      }
+    };
+
     socket.on('timesup-player-joined', handlePlayerJoined);
     socket.on('timesup-captains-assigned', handleCaptainsAssigned);
     socket.on('debug-log', handleDebugLog);
+    socket.on('you-are-host', handleYouAreHost);
+    socket.on('host-restored', handleHostRestored);
+    socket.on('host-removed', handleHostRemoved);
+    socket.on('host-changed', handleHostChanged);
 
     return () => {
       socket.off('disconnect', handleDisconnect);
@@ -255,6 +295,10 @@ export function TimesUpLobbyView({ onNavigate }) {
       socket.off('timesup-player-joined', handlePlayerJoined);
       socket.off('timesup-captains-assigned', handleCaptainsAssigned);
       socket.off('debug-log', handleDebugLog);
+      socket.off('you-are-host', handleYouAreHost);
+      socket.off('host-restored', handleHostRestored);
+      socket.off('host-removed', handleHostRemoved);
+      socket.off('host-changed', handleHostChanged);
     };
   }, [socket, onNavigate]);
 
@@ -271,6 +315,17 @@ export function TimesUpLobbyView({ onNavigate }) {
         {error && (
           <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-400 text-center">
             {error}
+          </div>
+        )}
+        
+        {/* Host Message */}
+        {hostMessage && (
+          <div className={`rounded-lg p-4 text-center font-medium ${
+            hostMessage.type === 'new-host' || hostMessage.type === 'host-restored'
+              ? 'bg-green-500/20 border border-green-500 text-green-400'
+              : 'bg-yellow-500/20 border border-yellow-500 text-yellow-400'
+          }`}>
+            👑 {hostMessage.message}
           </div>
         )}
 

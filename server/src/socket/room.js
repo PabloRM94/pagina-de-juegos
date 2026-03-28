@@ -290,6 +290,57 @@ export function getApuestasActiveRooms(apuestasRooms) {
   return activeRooms;
 }
 
+/**
+ * Transfiere el rol de host a otro jugador si el host está desconectado
+ * @param {object} room - Sala
+ * @param {object} io - Instancia de socket.io
+ * @param {string} gameType - Tipo de juego ('escondite', 'timesup', 'apuestas')
+ * @returns {boolean} - true si se transfirió el host
+ */
+export function transferHostIfNeeded(room, io, gameType = 'escondite') {
+  // Si no hay host o el host está conectado, no hacer nada
+  if (!room.host) return false;
+  
+  const hostPlayer = room.players.find(p => p.id === room.host);
+  const hostIsConnected = hostPlayer && !hostPlayer.disconnectedAt;
+  
+  if (hostIsConnected) return false;
+  
+  // Buscar el primer jugador conectado que no sea el host
+  const newHost = room.players.find(p => p.id !== room.host && !p.disconnectedAt);
+  
+  if (!newHost) {
+    console.log(`[transferHost] No hay jugadores conectados para heredar host en sala ${room.id}`);
+    return false;
+  }
+  
+  // Guardar info del host anterior
+  const oldHostName = hostPlayer?.name || 'Host';
+  
+  // Asignar nuevo host
+  room.host = newHost.id;
+  
+  console.log(`[transferHost] Host transferido de ${oldHostName} a ${newHost.name} en sala ${room.id}`);
+  
+  // Emitir eventos según el tipo de juego
+  const eventData = {
+    newHostId: newHost.id,
+    newHostName: newHost.name,
+    oldHostName
+  };
+  
+  // Notificar al nuevo host
+  io.to(newHost.id).emit('you-are-host', {
+    ...eventData,
+    isHost: true
+  });
+  
+  // Notificar a todos los demás
+  io.to(room.id).emit('host-changed', eventData);
+  
+  return true;
+}
+
 export default {
   createRoom,
   addPlayerToRoom,
@@ -298,5 +349,6 @@ export default {
   cleanupDisconnectedPlayers,
   getActiveRooms,
   getTimesupActiveRooms,
-  getApuestasActiveRooms
+  getApuestasActiveRooms,
+  transferHostIfNeeded
 };

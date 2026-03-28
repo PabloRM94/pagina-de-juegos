@@ -2,7 +2,7 @@ import { setupApuestasSocketHandlers } from './apuestasHandlers.js';
 import { setupBeerpongSocketHandlers } from './beerpongHandlers.js';
 
 import { v4 as uuidv4 } from 'uuid';
-import { createRoom, addPlayerToRoom, removePlayerFromRooms, markPlayerDisconnected, cleanupDisconnectedPlayers, getActiveRooms, getTimesupActiveRooms, getApuestasActiveRooms, generateRoomCode } from './room.js';
+import { createRoom, addPlayerToRoom, removePlayerFromRooms, markPlayerDisconnected, cleanupDisconnectedPlayers, getActiveRooms, getTimesupActiveRooms, getApuestasActiveRooms, generateRoomCode, transferHostIfNeeded } from './room.js';
 import { assignRandomRole, assignBalancedRole, resolveEncounter } from '../services/gameEngine.js';
 
 import { 
@@ -1240,6 +1240,31 @@ export function setupSocketHandlers(io) {
           player: { id: socket.id, name: player.name },
           playerCount: room.players.length
         });
+        
+        // Verificar si el host original se está reconectando
+        if (room.hostSessionId === sessionId && room.host !== socket.id) {
+          // El host original recupera su rol
+          const oldHostId = room.host;
+          const oldHost = room.players.find(p => p.id === oldHostId);
+          
+          room.host = socket.id;
+          console.log(`[timesup-rejoin] Host original ${player.name} recuperó el rol`);
+          
+          // Notificar al nuevo host que ya no lo es
+          if (oldHost) {
+            io.to(oldHostId).emit('host-removed', { message: 'El host original se ha reconectado' });
+          }
+          
+          // Notificar al host restaurado
+          io.to(socket.id).emit('host-restored', { isHost: true, message: 'Has recuperado el rol de host' });
+          
+          // Notificar a todos
+          io.emit('host-changed', { 
+            newHostId: socket.id, 
+            newHostName: player.name,
+            restored: true
+          });
+        }
       }
       
       callback({ 
@@ -1281,6 +1306,31 @@ export function setupSocketHandlers(io) {
         io.to(roomId).emit('room-updated', room);
         io.to(roomId).emit('player-reconnected', { playerId: socket.id, player });
         console.log('[rejoin-room] Jugador reconectado:', socket.id, 'sessionId:', sessionId, 'Sala:', roomId);
+        
+        // Verificar si el host original se está reconectando
+        if (room.hostSessionId === sessionId && room.host !== socket.id) {
+          // El host original recupera su rol
+          const oldHostId = room.host;
+          const oldHost = room.players.find(p => p.id === oldHostId);
+          
+          room.host = socket.id;
+          console.log(`[rejoin-room] Host original ${player.name} recuperó el rol`);
+          
+          // Notificar al nuevo host que ya no lo es
+          if (oldHost) {
+            io.to(oldHostId).emit('host-removed', { message: 'El host original se ha reconectado' });
+          }
+          
+          // Notificar al host restaurado
+          io.to(socket.id).emit('host-restored', { isHost: true, message: 'Has recuperado el rol de host' });
+          
+          // Notificar a todos
+          io.to(roomId).emit('host-changed', { 
+            newHostId: socket.id, 
+            newHostName: player.name,
+            restored: true
+          });
+        }
       }
       
       callback({ success: true, room });
@@ -1312,6 +1362,31 @@ export function setupSocketHandlers(io) {
         player.id = socket.id;
         console.log('[apuestas-rejoin] Jugador reconectado:', socket.id, 'sessionId:', sessionId, 'Sala:', roomId);
         io.emit('apuestas-player-joined', { roomId: room.id, player: { id: socket.id, name: player.name }, playerCount: room.players.length, roundWinners: room.game.roundWinners });
+        
+        // Verificar si el host original se está reconectando
+        if (room.hostSessionId === sessionId && room.host !== socket.id) {
+          // El host original recupera su rol
+          const oldHostId = room.host;
+          const oldHost = room.players.find(p => p.id === oldHostId);
+          
+          room.host = socket.id;
+          console.log(`[apuestas-rejoin] Host original ${player.name} recuperó el rol`);
+          
+          // Notificar al nuevo host que ya no lo es
+          if (oldHost) {
+            io.to(oldHostId).emit('host-removed', { message: 'El host original se ha reconectado' });
+          }
+          
+          // Notificar al host restaurado
+          io.to(socket.id).emit('host-restored', { isHost: true, message: 'Has recuperado el rol de host' });
+          
+          // Notificar a todos
+          io.emit('host-changed', { 
+            newHostId: socket.id, 
+            newHostName: player.name,
+            restored: true
+          });
+        }
       }
       
       callback({ 
@@ -1337,8 +1412,7 @@ export function setupSocketHandlers(io) {
       console.log('socket.id:', socket.id);
       console.log('reason:', reason);
       
-      // Por ahora solo marcamos por socket.id
-      // El sessionId no está disponible en disconnect, se maneja en reconexión
+      // Verificar Escondite
       const affectedRoom = markPlayerDisconnected(rooms, socket.id);
       
       if (affectedRoom) {
@@ -1347,7 +1421,42 @@ export function setupSocketHandlers(io) {
         console.log('Jugadores conectados en sala:', connectedCount);
         io.to(affectedRoom.id).emit('room-updated', affectedRoom);
         io.to(affectedRoom.id).emit('player-disconnected', { playerId: socket.id });
+        
+        // Verificar si el host se desconectó y transferir rol
+        if (affectedRoom.host === socket.id) {
+          transferHostIfNeeded(affectedRoom, io, 'escondite');
+        }
       }
+      
+      // Verificar Time's Up
+      timesupRooms.forEach((room, roomId) => {
+        const player = room.players.find(p => p.id === socket.id);
+        if (player) {
+          player.disconnectedAt = Date.now();
+          console.log(`[disconnect] Jugador ${player.name} desconectado de Time's Up sala ${roomId}`);
+          io.emit('timesup-player-left', { roomId, playerId: socket.id, playerName: player.name });
+          
+          // Transferir host si es necesario
+          if (room.host === socket.id) {
+            transferHostIfNeeded(room, io, 'timesup');
+          }
+        }
+      });
+      
+      // Verificar Apuestas
+      apuestasRooms.forEach((room, roomId) => {
+        const player = room.players.find(p => p.id === socket.id);
+        if (player) {
+          player.disconnectedAt = Date.now();
+          console.log(`[disconnect] Jugador ${player.name} desconectado de Apuestas sala ${roomId}`);
+          io.emit('apuestas-player-left', { roomId, playerId: socket.id, playerName: player.name });
+          
+          // Transferir host si es necesario
+          if (room.host === socket.id) {
+            transferHostIfNeeded(room, io, 'apuestas');
+          }
+        }
+      });
       
       console.log('===========================================');
     });

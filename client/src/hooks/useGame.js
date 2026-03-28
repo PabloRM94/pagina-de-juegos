@@ -16,6 +16,7 @@ export function useGame(token) {
   const [isSpectator, setIsSpectator] = useState(false);
   const [allies, setAllies] = useState(new Set()); // Set de IDs de aliados
   const [gameFinished, setGameFinished] = useState(null); // Info de victoria del equipo
+  const [hostMessage, setHostMessage] = useState(null); // Mensaje de host
   
   const socket = getSocket();
   
@@ -77,6 +78,26 @@ export function useGame(token) {
     socket.on('encounter-denied', handleEncounterDenied);
     socket.on('game-finished', handleGameFinished);
     
+    // Host events
+    const handleYouAreHost = (data) => {
+      console.log('[useGame] ¡Ahora eres el host!', data);
+      setHostMessage({ type: 'new-host', ...data });
+    };
+    
+    const handleHostRestored = (data) => {
+      console.log('[useGame] Has recuperado el host:', data);
+      setHostMessage({ type: 'host-restored', ...data });
+    };
+    
+    const handleHostRemoved = (data) => {
+      console.log('[useGame] Ya no eres host:', data);
+      setHostMessage({ type: 'host-removed', ...data });
+    };
+    
+    socket.on('you-are-host', handleYouAreHost);
+    socket.on('host-restored', handleHostRestored);
+    socket.on('host-removed', handleHostRemoved);
+    
     return () => {
       socket.off('room-updated', handleRoomUpdated);
       socket.off('encounter-proposed', handleEncounterProposed);
@@ -84,6 +105,9 @@ export function useGame(token) {
       socket.off('encounter-resolved', handleEncounterResolved);
       socket.off('encounter-denied', handleEncounterDenied);
       socket.off('game-finished', handleGameFinished);
+      socket.off('you-are-host', handleYouAreHost);
+      socket.off('host-restored', handleHostRestored);
+      socket.off('host-removed', handleHostRemoved);
     };
   }, [socket, player]);
   
@@ -274,6 +298,8 @@ export function useGame(token) {
     isSpectator,
     allies,
     gameFinished,
+    hostMessage,
+    setHostMessage,
     createRoom,
     joinRoom,
     leaveRoom,

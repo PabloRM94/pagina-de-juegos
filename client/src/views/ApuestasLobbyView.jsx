@@ -21,6 +21,15 @@ export default function ApuestasLobbyView({ onNavigate }) {
   const [isJoining, setIsJoining] = useState(false);
   const [activeRooms, setActiveRooms] = useState([]);
   const [showRooms, setShowRooms] = useState(false);
+  const [hostMessage, setHostMessage] = useState(null);
+  
+  // Limpiar mensaje de host después de 5 segundos
+  useEffect(() => {
+    if (hostMessage) {
+      const timer = setTimeout(() => setHostMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [hostMessage]);
   
   // Obtener salas activas al montar el componente
   useEffect(() => {
@@ -105,11 +114,43 @@ export default function ApuestasLobbyView({ onNavigate }) {
     socket.on('apuestas-player-joined', handleApuestasPlayerJoined);
     socket.on('apuestas-player-left', handleApuestasPlayerLeft);
     socket.on('apuestas-config-set', handleApuestasConfigSet);
+    
+    // Host events
+    const handleYouAreHost = (data) => {
+      console.log('[ApuestasLobby] ¡Ahora eres el host!', data);
+      setHostMessage({ type: 'new-host', message: `¡Ahora eres el host! Has reemplazado a ${data.oldHostName}` });
+    };
+    
+    const handleHostRestored = (data) => {
+      console.log('[ApuestasLobby] Has recuperado el host:', data);
+      setHostMessage({ type: 'host-restored', message: '¡Has recuperado el rol de host!' });
+    };
+    
+    const handleHostRemoved = (data) => {
+      console.log('[ApuestasLobby] Ya no eres host:', data);
+      setHostMessage({ type: 'host-removed', message: data.message || 'El host original se ha reconectado' });
+    };
+    
+    const handleHostChanged = (data) => {
+      console.log('[ApuestasLobby] El host cambió:', data);
+      if (data.newHostId === socket.id && !data.restored) {
+        setHostMessage({ type: 'new-host', message: `¡Ahora eres el host! Has reemplazado a ${data.oldHostName}` });
+      }
+    };
+
+    socket.on('you-are-host', handleYouAreHost);
+    socket.on('host-restored', handleHostRestored);
+    socket.on('host-removed', handleHostRemoved);
+    socket.on('host-changed', handleHostChanged);
 
     return () => {
       socket.off('apuestas-player-joined', handleApuestasPlayerJoined);
       socket.off('apuestas-player-left', handleApuestasPlayerLeft);
       socket.off('apuestas-config-set', handleApuestasConfigSet);
+      socket.off('you-are-host', handleYouAreHost);
+      socket.off('host-restored', handleHostRestored);
+      socket.off('host-removed', handleHostRemoved);
+      socket.off('host-changed', handleHostChanged);
     };
   }, [room]);
 
@@ -284,6 +325,17 @@ export default function ApuestasLobbyView({ onNavigate }) {
           {error && (
             <div className="bg-red-900/50 border border-red-700 text-red-300 p-3 rounded-lg">
               {error}
+            </div>
+          )}
+          
+          {/* Host Message */}
+          {hostMessage && (
+            <div className={`rounded-lg p-4 text-center font-medium ${
+              hostMessage.type === 'new-host' || hostMessage.type === 'host-restored'
+                ? 'bg-green-500/20 border border-green-500 text-green-400'
+                : 'bg-yellow-500/20 border border-yellow-500 text-yellow-400'
+            }`}>
+              👑 {hostMessage.message}
             </div>
           )}
 
